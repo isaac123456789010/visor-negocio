@@ -128,40 +128,34 @@ async function buscar(){
 const abonosText = await fetch(urlAbonos).then(r=>r.text());
 const abonosFilas = abonosText.split("\n");
 
-// detectar separador principal
-let separadorAbonos = ",";
-if(abonosFilas[0].includes(";")) separadorAbonos = ";";
-
 let totalAbonos = 0;
 
 for(let i=1;i<abonosFilas.length;i++){
 
-  let fila = abonosFilas[i].split(separadorAbonos);
+  const linea = abonosFilas[i];
+
+  // 🔥 detectar separador principal
+  let separador = linea.includes(";") ? ";" : ",";
+
+  let partes = linea.split(separador);
 
   // ✅ columna C = código
-  const codigoFila = limpiar(fila[2] || "");
+  const codigoFila = limpiar(partes[2] || "");
 
   if(codigoFila === codigoBuscado){
 
-    // 🔥 reconstruir valor de columna D si se partió por comas
-    let valorTexto = fila[3] || "";
+    // 🧠 reconstruir TODO el valor desde la columna D en adelante
+    let valorTexto = partes.slice(3).join("");
 
-    // si el siguiente pedazo parece continuar el número (ej: 000)
-    if(separadorAbonos === "," && fila[4] && /^\d{3}$/.test(fila[4].trim())){
-      valorTexto = valorTexto + fila[4];
-    }
-
-    valorTexto = valorTexto.toString().replace(/"/g,"");
-
-    // quitar todo excepto números
-    valorTexto = valorTexto.replace(/[^0-9]/g,"");
+    // limpiar comillas y símbolos
+    valorTexto = valorTexto.replace(/"/g,"");
 
     const valor = limpiarNumero(valorTexto);
-totalAbonos += valor;
 
-
+    totalAbonos += valor;
   }
 }
+
 
 
 
@@ -182,6 +176,7 @@ totalAbonos += valor;
 
 </body>
 </html>
+
 
 
 
