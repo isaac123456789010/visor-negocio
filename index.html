@@ -116,41 +116,30 @@ async function buscar(){
       return;
     }
 
-    // ===== ABONOS =====
-    const abonosText = await fetch(urlAbonos).then(r=>r.text());
-    const abonosFilas = abonosText.split("\n");
+  // ===== ABONOS =====
+const abonosText = await fetch(urlAbonos).then(r=>r.text());
+const abonosFilas = abonosText.split("\n");
 
-    let totalAbonos = 0;
+let totalAbonos = 0;
 
-    for(let i=1;i<abonosFilas.length;i++){
-      const fila = separarFila(abonosFilas[i]);
+for(let i=1;i<abonosFilas.length;i++){
+  const fila = separarFila(abonosFilas[i]);
 
-      let coincide = false;
+  // ✅ columna C = código
+  const codigoFila = limpiar(fila[2] || "");
 
-      for(let celda of fila){
-        if(limpiar(celda) === codigoBuscado){
-          coincide = true;
-          break;
-        }
-      }
+  if(codigoFila === codigoBuscado){
 
-      if(coincide){
-        // intenta leer valores numéricos de la fila
-        for(let celda of fila){
-          let limpio = (celda||"")
-  .replace(/\./g,"")   // quita separadores de miles
-  .replace(/,/g,".")   // convierte decimal
-  .replace(/[^0-9.]/g,"");
+    // ✅ columna D = valor del abono
+    let limpio = (fila[3] || "")
+      .replace(/\./g,"")
+      .replace(/,/g,".")
+      .replace(/[^0-9.]/g,"");
 
-const num = parseFloat(limpio);
-
-          if(!isNaN(num) && num > 0){
-            totalAbonos += num;
-            break;
-          }
-        }
-      }
-    }
+    const valor = parseFloat(limpio) || 0;
+    totalAbonos += valor;
+  }
+}
 
     document.getElementById("resultado").innerHTML = `
       ✅ Cliente encontrado<br>
@@ -168,5 +157,6 @@ const num = parseFloat(limpio);
 
 </body>
 </html>
+
 
 
