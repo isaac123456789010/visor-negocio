@@ -54,24 +54,32 @@ button{
 
 <div class="card">
   <h2>📊 Ventas a crédito</h2>
-  <iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmAZln4BBbQrbDe_RsnTCMSQBCoGwLDjBAtgFtlu9A9AEdJ0c9wHsHotn4lffLy/pubhtml?gid=1125130532&single=true&widget=true&headers=false"
-  style="width:100%;height:500px;border:none;border-radius:10px;"></iframe>
+  <iframe
+    src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmAZln4BBbQrbDe_RsnTCMSQBCoGwLDjBAtgFtlu9A9AEdJ0c9wHsHotn4lffLy/pubhtml?gid=1125130532&single=true"
+    style="width:100%;height:500px;border:none;border-radius:10px;">
+  </iframe>
 </div>
 
 <script>
-function limpiar(valor){
-  return valor.replace(/['"\r]/g,"").trim();
+function limpiar(v){
+  return v.replace(/['"\r]/g,"").trim();
+}
+
+function separarFila(texto){
+  // 🔥 detecta si usa ; o ,
+  if(texto.includes(";")) return texto.split(";");
+  return texto.split(",");
 }
 
 async function buscar(){
 
-  const codigoUsuario = document.getElementById("codigo").value.trim();
-  if(!codigoUsuario){
+  const input = document.getElementById("codigo").value.trim();
+  if(!input){
     document.getElementById("resultado").innerHTML = "⚠️ Escribe un código";
     return;
   }
 
-  const codigoBuscado = codigoUsuario.padStart(3,"0");
+  const codigoBuscado = input.padStart(3,"0");
 
   const base =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmAZln4BBbQrbDe_RsnTCMSQBCoGwLDjBAtgFtlu9A9AEdJ0c9wHsHotn4lffLy/pub?gid=";
@@ -81,14 +89,14 @@ async function buscar(){
 
   try{
 
-    // 🔹 VENTAS
+    // ===== VENTAS =====
     const ventasText = await fetch(urlVentas).then(r=>r.text());
     const ventasFilas = ventasText.split("\n");
 
     let ventaExiste = false;
 
     for(let i=2;i<ventasFilas.length;i++){
-      const fila = ventasFilas[i].split(",");
+      const fila = separarFila(ventasFilas[i]);
       const codigoFila = limpiar(fila[9] || "");
 
       if(codigoFila === codigoBuscado){
@@ -103,18 +111,18 @@ async function buscar(){
       return;
     }
 
-    // 🔹 ABONOS
+    // ===== ABONOS =====
     const abonosText = await fetch(urlAbonos).then(r=>r.text());
     const abonosFilas = abonosText.split("\n");
 
     let totalAbonos = 0;
 
     for(let i=1;i<abonosFilas.length;i++){
-      const fila = abonosFilas[i].split(",");
+      const fila = separarFila(abonosFilas[i]);
       const codigoFila = limpiar(fila[2] || "");
 
       if(codigoFila === codigoBuscado){
-        const valor = parseFloat(fila[3]) || 0;
+        const valor = parseFloat((fila[3]||"").replace(",",".")) || 0;
         totalAbonos += valor;
       }
     }
@@ -124,10 +132,10 @@ async function buscar(){
       💰 Total abonado: $${totalAbonos.toLocaleString()}
     `;
 
-  }catch(e){
+  }catch(err){
+    console.error(err);
     document.getElementById("resultado").innerHTML =
       "⚠️ Error leyendo datos";
-    console.error(e);
   }
 }
 </script>
