@@ -62,11 +62,12 @@ button{
 
 <script>
 function limpiar(v){
-  return v.replace(/['"\r]/g,"").trim();
+  return (v || "")
+    .replace(/['"\r]/g,"")
+    .trim();
 }
 
 function separarFila(texto){
-  // 🔥 detecta si usa ; o ,
   if(texto.includes(";")) return texto.split(";");
   return texto.split(",");
 }
@@ -95,14 +96,18 @@ async function buscar(){
 
     let ventaExiste = false;
 
-    for(let i=2;i<ventasFilas.length;i++){
+    for(let i=1;i<ventasFilas.length;i++){
       const fila = separarFila(ventasFilas[i]);
-      const codigoFila = limpiar(fila[9] || "");
 
-      if(codigoFila === codigoBuscado){
-        ventaExiste = true;
-        break;
+      // 🔥 busca en TODA la fila
+      for(let celda of fila){
+        if(limpiar(celda) === codigoBuscado){
+          ventaExiste = true;
+          break;
+        }
       }
+
+      if(ventaExiste) break;
     }
 
     if(!ventaExiste){
@@ -119,11 +124,25 @@ async function buscar(){
 
     for(let i=1;i<abonosFilas.length;i++){
       const fila = separarFila(abonosFilas[i]);
-      const codigoFila = limpiar(fila[2] || "");
 
-      if(codigoFila === codigoBuscado){
-        const valor = parseFloat((fila[3]||"").replace(",",".")) || 0;
-        totalAbonos += valor;
+      let coincide = false;
+
+      for(let celda of fila){
+        if(limpiar(celda) === codigoBuscado){
+          coincide = true;
+          break;
+        }
+      }
+
+      if(coincide){
+        // intenta leer valores numéricos de la fila
+        for(let celda of fila){
+          const num = parseFloat((celda||"").replace(",","."));
+          if(!isNaN(num) && num > 0){
+            totalAbonos += num;
+            break;
+          }
+        }
       }
     }
 
@@ -140,5 +159,7 @@ async function buscar(){
 }
 </script>
 
+
 </body>
 </html>
+
