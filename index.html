@@ -120,34 +120,44 @@ async function buscar(){
 const abonosText = await fetch(urlAbonos).then(r=>r.text());
 const abonosFilas = abonosText.split("\n");
 
-// 🔥 detectar separador real usando encabezado
+// detectar separador real
 let separadorAbonos = ",";
 if(abonosFilas[0].includes(";")) separadorAbonos = ";";
+
+// función para partir respetando comillas
+function partirCSV(linea, sep){
+  const regex = new RegExp(`(${sep})(?=(?:[^"]*"[^"]*")*[^"]*$)`);
+  return linea.split(regex).filter(x => x !== sep);
+}
 
 let totalAbonos = 0;
 
 for(let i=1;i<abonosFilas.length;i++){
-  const fila = abonosFilas[i].split(separadorAbonos);
 
-  // columna C = índice 2
+  const fila = partirCSV(abonosFilas[i], separadorAbonos);
+
+  // columna C = código
   const codigoFila = limpiar(fila[2] || "");
 
   if(codigoFila === codigoBuscado){
 
-    // columna D = índice 3 (valor real)
-let valorTexto = (fila[3] || "").toString().trim();
+    // columna D = valor del abono
+    let valorTexto = (fila[3] || "").toString();
 
-// 🔥 quitar separadores de miles (comas y puntos)
-valorTexto = valorTexto.replace(/,/g,"").replace(/\./g,"");
+    // 🔥 quitar comillas
+    valorTexto = valorTexto.replace(/"/g,"");
 
-// 🔥 dejar solo números
-valorTexto = valorTexto.replace(/[^0-9]/g,"");
+    // 🔥 quitar separadores de miles
+    valorTexto = valorTexto.replace(/[.,]/g,"");
 
-const valor = Number(valorTexto) || 0;
+    // 🔥 dejar solo números
+    valorTexto = valorTexto.replace(/[^0-9]/g,"");
 
+    const valor = Number(valorTexto) || 0;
     totalAbonos += valor;
   }
 }
+
 
 
     document.getElementById("resultado").innerHTML = `
@@ -166,6 +176,7 @@ const valor = Number(valorTexto) || 0;
 
 </body>
 </html>
+
 
 
 
