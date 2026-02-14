@@ -51,13 +51,28 @@ th{
   background:#2e86de;
   color:white;
 }
+
+iframe{
+  width:100%;
+  height:500px;
+  border:none;
+  border-radius:10px;
+}
 </style>
 </head>
 <body>
 
 <h1>🔍 Consulta de Cliente</h1>
 
+<!-- ✅ VENTAS SIEMPRE VISIBLES -->
 <div class="card">
+  <h2>📊 Ventas a crédito</h2>
+  <iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmAZln4BBbQrbDe_RsnTCMSQBCoGwLDjBAtgFtlu9A9AEdJ0c9wHsHotn4lffLy/pubhtml?widget=true&headers=false"></iframe>
+</div>
+
+<!-- 🔍 BUSCADOR -->
+<div class="card">
+  <h2>🔎 Buscar cliente</h2>
   <input id="codigo" placeholder="Ingrese código ej: 001">
   <button onclick="buscar()">Buscar</button>
   <div id="resultado"></div>
@@ -68,38 +83,57 @@ const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmA
 
 let ventas = [];
 let abonos = [];
+let datosListos = false;
 
 async function cargarDatos(){
-  const res = await fetch(url);
-  const data = await res.arrayBuffer();
-  const wb = XLSX.read(data,{type:"array"});
+  try{
+    const res = await fetch(url);
+    const data = await res.arrayBuffer();
+    const wb = XLSX.read(data,{type:"array"});
 
-  // Ventas a crédito (encabezados en fila 2)
-  const sheetVentas = wb.Sheets["Ventas a crédito"];
-  ventas = XLSX.utils.sheet_to_json(sheetVentas,{range:1});
+    // Ventas a crédito (encabezados en fila 2)
+    const sheetVentas = wb.Sheets["Ventas a crédito"];
+    ventas = XLSX.utils.sheet_to_json(sheetVentas,{range:1});
 
-  // Abonos
-  const sheetAbonos = wb.Sheets["Abonos"];
-  abonos = XLSX.utils.sheet_to_json(sheetAbonos);
+    // Abonos
+    const sheetAbonos = wb.Sheets["Abonos"];
+    abonos = XLSX.utils.sheet_to_json(sheetAbonos);
+
+    datosListos = true;
+    console.log("Datos cargados");
+  }catch(e){
+    console.error("Error cargando datos:", e);
+  }
+}
+
+function normalizar(valor){
+  return String(valor).replace("'", "").trim();
 }
 
 function buscar(){
-  const cod = document.getElementById("codigo").value.trim();
-  if(!cod) return;
-
-  const codigo = "'" + cod;
-
-  const venta = ventas.find(v => String(v[Object.keys(v)[9]]) === codigo);
-
-  if(!venta){
+  if(!datosListos){
     document.getElementById("resultado").innerHTML =
-      "<p style='color:red'>Cliente no encontrado</p>";
+      "<p style='color:red'>⏳ Cargando datos... intenta en unos segundos</p>";
     return;
   }
 
-  // filtrar abonos (columna C)
+  const cod = document.getElementById("codigo").value.trim();
+  if(!cod) return;
+
+  // columna J = índice 9
+  const venta = ventas.find(v =>
+    normalizar(v[Object.keys(v)[9]]) === cod
+  );
+
+  if(!venta){
+    document.getElementById("resultado").innerHTML =
+      "<p style='color:red'>❌ Cliente no encontrado</p>";
+    return;
+  }
+
+  // columna C en abonos = índice 2
   const abonosCliente = abonos.filter(a =>
-    String(a[Object.keys(a)[2]]) === codigo
+    normalizar(a[Object.keys(a)[2]]) === cod
   );
 
   let html = "<h3>📄 Datos de la venta</h3>";
