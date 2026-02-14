@@ -61,6 +61,14 @@ button{
 </div>
 
 <script>
+
+function limpiarNumero(valor) {
+  if (!valor) return 0;
+  return Number(
+    valor.toString().replace(/[^0-9]/g, "")
+  ) || 0;
+}
+
 function limpiar(v){
   return (v || "")
     .replace(/['"\r]/g,"")
@@ -149,7 +157,8 @@ for(let i=1;i<abonosFilas.length;i++){
     valorTexto = valorTexto.replace(/[^0-9]/g,"");
 
     const valor = Number(valorTexto) || 0;
-    totalAbonos += valor;
+    totalAbonos += limpiarNumero(datos[i][3]);
+
   }
 }
 
@@ -172,6 +181,7 @@ for(let i=1;i<abonosFilas.length;i++){
 
 </body>
 </html>
+
 
 
 
