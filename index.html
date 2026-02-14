@@ -134,7 +134,7 @@ for(let i=1;i<abonosFilas.length;i++){
 
   const linea = abonosFilas[i];
 
-  // 🔥 detectar separador principal
+  // detectar separador
   let separador = linea.includes(";") ? ";" : ",";
 
   let partes = linea.split(separador);
@@ -144,25 +144,22 @@ for(let i=1;i<abonosFilas.length;i++){
 
   if(codigoFila === codigoBuscado){
 
-    // ✅ reconstruir el valor desde la columna D
-let valorTexto = partes.slice(3).join(",");
+    // ✅ tomar desde columna D
+    let valorTexto = partes.slice(3).join(",");
 
-// limpiar comillas
-valorTexto = valorTexto.replace(/"/g,"").trim();
+    // limpiar comillas y espacios
+    valorTexto = valorTexto.replace(/"/g,"").trim();
 
-// 🔥 normalizar número tipo 2,250,000 o 920,000
-valorTexto = valorTexto
-  .replace(/\./g, "")     // quitar puntos de miles
-  .replace(/,/g, "");     // quitar comas
+    // 🔥 convertir cualquier formato a número limpio
+    valorTexto = valorTexto
+      .replace(/\./g,"")   // quita puntos de miles
+      .replace(/,/g,"");   // quita comas
 
-const valor = Number(valorTexto) || 0;
-totalAbonos += valor;
+    const valor = Number(valorTexto) || 0;
+
+    totalAbonos += valor;
   }
 }
-
-
-
-
 
     document.getElementById("resultado").innerHTML = `
       ✅ Cliente encontrado<br>
@@ -180,6 +177,7 @@ totalAbonos += valor;
 
 </body>
 </html>
+
 
 
 
