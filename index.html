@@ -116,30 +116,38 @@ async function buscar(){
       return;
     }
 
-  // ===== ABONOS =====
+// ===== ABONOS =====
 const abonosText = await fetch(urlAbonos).then(r=>r.text());
 const abonosFilas = abonosText.split("\n");
+
+// 🔥 detectar separador real usando encabezado
+let separadorAbonos = ",";
+if(abonosFilas[0].includes(";")) separadorAbonos = ";";
 
 let totalAbonos = 0;
 
 for(let i=1;i<abonosFilas.length;i++){
-  const fila = separarFila(abonosFilas[i]);
+  const fila = abonosFilas[i].split(separadorAbonos);
 
-  // ✅ columna C = código
+  // columna C = índice 2
   const codigoFila = limpiar(fila[2] || "");
 
   if(codigoFila === codigoBuscado){
 
-    // ✅ columna D = valor del abono
-    let limpio = (fila[3] || "")
-      .replace(/\./g,"")
-      .replace(/,/g,".")
+    // columna D = índice 3 (valor real)
+    let valorTexto = (fila[3] || "").toString();
+
+    // 🔥 limpieza fuerte del número
+    valorTexto = valorTexto
+      .replace(/\./g,"")   // quita miles
+      .replace(/,/g,".")   // decimal
       .replace(/[^0-9.]/g,"");
 
-    const valor = parseFloat(limpio) || 0;
+    const valor = Number(valorTexto) || 0;
     totalAbonos += valor;
   }
 }
+
 
     document.getElementById("resultado").innerHTML = `
       ✅ Cliente encontrado<br>
@@ -157,6 +165,7 @@ for(let i=1;i<abonosFilas.length;i++){
 
 </body>
 </html>
+
 
 
 
