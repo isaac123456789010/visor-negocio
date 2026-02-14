@@ -137,7 +137,13 @@ async function buscar(){
       if(coincide){
         // intenta leer valores numéricos de la fila
         for(let celda of fila){
-          const num = parseFloat((celda||"").replace(",","."));
+          let limpio = (celda||"")
+  .replace(/\./g,"")   // quita separadores de miles
+  .replace(/,/g,".")   // convierte decimal
+  .replace(/[^0-9.]/g,"");
+
+const num = parseFloat(limpio);
+
           if(!isNaN(num) && num > 0){
             totalAbonos += num;
             break;
@@ -162,4 +168,5 @@ async function buscar(){
 
 </body>
 </html>
+
 
