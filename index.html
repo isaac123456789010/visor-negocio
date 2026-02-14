@@ -62,12 +62,7 @@ button{
 
 <script>
 
-function limpiarNumero(valor) {
-  if (!valor) return 0;
-  return Number(
-    valor.toString().replace(/[^0-9]/g, "")
-  ) || 0;
-}
+// ================= HELPERS =================
 
 function limpiar(v){
   return (v || "")
@@ -75,14 +70,32 @@ function limpiar(v){
     .trim();
 }
 
-function separarFila(texto){
-  if(texto.includes(";")) return texto.split(";");
-  return texto.split(",");
+// 🔥 parser CSV que respeta comillas (CLAVE)
+function parseCSVLine(line) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let char of line) {
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  result.push(current);
+  return result;
 }
+
+// ================= BUSCADOR =================
 
 async function buscar(){
 
   const input = document.getElementById("codigo").value.trim();
+
   if(!input){
     document.getElementById("resultado").innerHTML = "⚠️ Escribe un código";
     return;
@@ -98,16 +111,16 @@ async function buscar(){
 
   try{
 
-    // ===== VENTAS =====
+    // ================= VENTAS =================
     const ventasText = await fetch(urlVentas).then(r=>r.text());
     const ventasFilas = ventasText.split("\n");
 
     let ventaExiste = false;
 
     for(let i=1;i<ventasFilas.length;i++){
-      const fila = separarFila(ventasFilas[i]);
 
-      // 🔥 busca en TODA la fila
+      const fila = parseCSVLine(ventasFilas[i]);
+
       for(let celda of fila){
         if(limpiar(celda) === codigoBuscado){
           ventaExiste = true;
@@ -124,43 +137,41 @@ async function buscar(){
       return;
     }
 
-// ===== ABONOS =====
-const abonosText = await fetch(urlAbonos).then(r=>r.text());
-const abonosFilas = abonosText.split("\n");
+    // ================= ABONOS =================
+    const abonosText = await fetch(urlAbonos).then(r=>r.text());
+    const abonosFilas = abonosText.split("\n");
 
-let totalAbonos = 0;
+    let totalAbonos = 0;
 
-for(let i=1;i<abonosFilas.length;i++){
+    for(let i=1;i<abonosFilas.length;i++){
 
-  const linea = abonosFilas[i];
+      const linea = abonosFilas[i];
+      if(!linea.trim()) continue;
 
-  // detectar separador
-  let separador = linea.includes(";") ? ";" : ",";
+      const partes = parseCSVLine(linea);
 
-  let partes = linea.split(separador);
+      // columna C = código
+      const codigoFila = limpiar(partes[2] || "");
 
-  // ✅ columna C = código
-  const codigoFila = limpiar(partes[2] || "");
+      if(codigoFila === codigoBuscado){
 
-  if(codigoFila === codigoBuscado){
+        // columna D = valor abonado
+        let valorTexto = (partes[3] || "")
+          .replace(/"/g,"")
+          .trim();
 
-    // ✅ tomar desde columna D
-    let valorTexto = partes.slice(3).join(",");
+        // 🔥 normalización universal
+        valorTexto = valorTexto
+          .replace(/\./g,"")
+          .replace(/,/g,"");
 
-    // limpiar comillas y espacios
-    valorTexto = valorTexto.replace(/"/g,"").trim();
+        const valor = Number(valorTexto) || 0;
 
-    // 🔥 convertir cualquier formato a número limpio
-    valorTexto = valorTexto
-      .replace(/\./g,"")   // quita puntos de miles
-      .replace(/,/g,"");   // quita comas
+        totalAbonos += valor;
+      }
+    }
 
-    const valor = Number(valorTexto) || 0;
-
-    totalAbonos += valor;
-  }
-}
-
+    // ================= RESULTADO =================
     document.getElementById("resultado").innerHTML = `
       ✅ Cliente encontrado<br>
       💰 Total abonado: $${totalAbonos.toLocaleString()}
@@ -172,22 +183,8 @@ for(let i=1;i<abonosFilas.length;i++){
       "⚠️ Error leyendo datos";
   }
 }
-</script>
 
+</script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
