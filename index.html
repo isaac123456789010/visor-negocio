@@ -144,15 +144,20 @@ for(let i=1;i<abonosFilas.length;i++){
 
   if(codigoFila === codigoBuscado){
 
-    // 🧠 reconstruir TODO el valor desde la columna D en adelante
-    let valorTexto = partes.slice(3).join("");
+    // ✅ tomar SOLO la columna D correctamente
+let valorTexto = partes[3] || "";
 
-    // limpiar comillas y símbolos
-    valorTexto = valorTexto.replace(/"/g,"");
+// 🔥 si el número se partió por comas, reconstruir
+let j = 4;
+while (j < partes.length && /^\d{3}$/.test(partes[j].trim())) {
+  valorTexto += partes[j];
+  j++;
+}
 
-    const valor = limpiarNumero(valorTexto);
+valorTexto = valorTexto.replace(/"/g,"");
 
-    totalAbonos += valor;
+const valor = limpiarNumero(valorTexto);
+totalAbonos += valor;
   }
 }
 
@@ -176,6 +181,7 @@ for(let i=1;i<abonosFilas.length;i++){
 
 </body>
 </html>
+
 
 
 
