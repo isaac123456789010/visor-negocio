@@ -39,6 +39,7 @@ button{
 #resultado{
   margin-top:15px;
   font-weight:bold;
+  line-height:1.6;
 }
 </style>
 </head>
@@ -93,16 +94,13 @@ function limpiarNumero(valor){
   if(!valor) return 0;
 
   valor = valor.toString().trim();
-
-  // quitar comillas y espacios
   valor = valor.replace(/["\s]/g,"");
 
-  // ✅ formato colombiano: 2.250.000
+  // formato colombiano 2.250.000
   if(valor.includes(".") && !valor.includes(",")){
     return Number(valor.replace(/\./g,"")) || 0;
   }
 
-  // ✅ cualquier otro caso
   return Number(valor.replace(/[^0-9]/g,"")) || 0;
 }
 
@@ -127,32 +125,44 @@ async function buscar(){
 
   try{
 
-    // ================= VERIFICAR QUE EXISTE EN VENTAS =================
+    // ================= BUSCAR EN VENTAS =================
     const ventasText = await fetch(urlVentas).then(r=>r.text());
     const ventasFilas = ventasText.split("\n");
 
-    let ventaExiste = false;
+    let cliente = null;
 
     for(let i=1;i<ventasFilas.length;i++){
 
       const partes = parseCSVLine(ventasFilas[i]);
 
-      // ✅ COLUMNA J = identificador (índice 9)
+      // ✅ Columna J = identificador
       const codigoFila = limpiar(partes[9] || "");
 
       if(codigoFila === codigoBuscado){
-        ventaExiste = true;
+        cliente = partes;
         break;
       }
     }
 
-    if(!ventaExiste){
+    if(!cliente){
       document.getElementById("resultado").innerHTML =
         "❌ No se encontró el cliente";
       return;
     }
 
-    // ================= SUMAR ABONOS =================
+    // ================= DATOS DESDE VENTAS =================
+
+    const nombre = limpiar(cliente[1]);
+    const totalVenta = limpiarNumero(cliente[3]);
+    const totalAbonadoHoja = limpiarNumero(cliente[6]);
+    const saldoPendiente = limpiarNumero(cliente[7]);
+    const cedula = limpiar(cliente[10]);
+    const telefono = limpiar(cliente[11]);
+    const fechaUltimoPago = limpiar(cliente[12]);
+    const estado = limpiar(cliente[13]);
+
+    // ================= SUMAR ABONOS (extra precisión) =================
+
     const abonosText = await fetch(urlAbonos).then(r=>r.text());
     const abonosFilas = abonosText.split("\n");
 
@@ -162,23 +172,35 @@ async function buscar(){
 
       const partes = parseCSVLine(abonosFilas[i]);
 
-      // ✅ Columna C = identificador (índice 2)
       const codigoFila = limpiar(partes[2] || "");
 
       if(codigoFila === codigoBuscado){
-
-        // ✅ Columna D = valor abono (índice 3)
-        const valorTexto = limpiar(partes[3] || "");
-        const valor = limpiarNumero(valorTexto);
-
+        const valor = limpiarNumero(partes[3] || "");
         totalAbonos += valor;
       }
     }
 
-    // ================= RESULTADO =================
+    // si por alguna razón no hay abonos en la hoja de abonos,
+    // usa el valor acumulado de ventas
+    if(totalAbonos === 0){
+      totalAbonos = totalAbonadoHoja;
+    }
+
+    // ================= MOSTRAR =================
+
     document.getElementById("resultado").innerHTML = `
-      ✅ Cliente encontrado<br>
-      💰 Total abonado: $${totalAbonos.toLocaleString()}
+      ✅ Cliente encontrado<br><br>
+
+      👤 Nombre: ${nombre}<br>
+      🆔 Cédula: ${cedula}<br>
+      📞 Teléfono: ${telefono}<br><br>
+
+      📊 Total venta: $${totalVenta.toLocaleString()}<br>
+      💰 Total abonado: $${totalAbonos.toLocaleString()}<br>
+      💳 Saldo pendiente: $${saldoPendiente.toLocaleString()}<br><br>
+
+      📅 Último pago: ${fechaUltimoPago || "—"}<br>
+      📌 Estado: ${estado || "—"}
     `;
 
   }catch(err){
@@ -192,6 +214,3 @@ async function buscar(){
 
 </body>
 </html>
-
-
-
