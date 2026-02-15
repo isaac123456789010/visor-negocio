@@ -174,15 +174,19 @@ async function buscar(){
       const partes = parseCSVLine(abonosFilas[i]);
       const codigoFila = limpiar(partes[2] || "");
 
-      if(codigoFila === codigoBuscado){
+     if(codigoFila === codigoBuscado){
 
-        const valor = limpiarNumero(partes[3] || "");
+  const fechaAbono = limpiar(partes[1] || "");
+  const valor = limpiarNumero(partes[3] || "");
 
-        if(valor > 0){
-          listaAbonos.push(valor);
-          totalAbonos += valor;
-        }
-      }
+  if(valor > 0){
+    listaAbonos.push({
+      fecha: fechaAbono,
+      valor: valor
+    });
+    totalAbonos += valor;
+  }
+}
     }
 
     // construir lista HTML
@@ -228,3 +232,4 @@ async function buscar(){
 
 </body>
 </html>
+
