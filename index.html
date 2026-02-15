@@ -92,13 +92,18 @@ function parseCSVLine(line) {
 function limpiarNumero(valor){
   if(!valor) return 0;
 
-  return Number(
-    valor
-      .toString()
-      .replace(/\./g,"")
-      .replace(/,/g,"")
-      .replace(/[^0-9]/g,"")
-  ) || 0;
+  valor = valor.toString().trim();
+
+  // quitar comillas y espacios
+  valor = valor.replace(/["\s]/g,"");
+
+  // ✅ formato colombiano: 2.250.000
+  if(valor.includes(".") && !valor.includes(",")){
+    return Number(valor.replace(/\./g,"")) || 0;
+  }
+
+  // ✅ cualquier otro caso
+  return Number(valor.replace(/[^0-9]/g,"")) || 0;
 }
 
 // ================= BUSCADOR =================
@@ -187,5 +192,6 @@ async function buscar(){
 
 </body>
 </html>
+
 
 
