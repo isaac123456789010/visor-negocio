@@ -190,18 +190,18 @@ async function buscar(){
     }
 
     // construir lista HTML
-    let htmlAbonos = "";
+let htmlAbonos = "";
 
-    if(listaAbonos.length){
-      htmlAbonos = `
-        <div class="lista-abonos">
-          📑 Historial de abonos:<br>
-          ${listaAbonos
-            .map(v => `• $${v.toLocaleString()}`)
-            .join("<br>")}
-        </div>
-      `;
-    }
+if(listaAbonos.length){
+  htmlAbonos = `
+    <div class="lista-abonos">
+      📑 Historial de abonos:<br>
+      ${listaAbonos
+        .map(a => `• ${a.fecha} — $${a.valor.toLocaleString()}`)
+        .join("<br>")}
+    </div>
+  `;
+}
 
     // ================= RESULTADO =================
     document.getElementById("resultado").innerHTML = `
@@ -232,4 +232,5 @@ async function buscar(){
 
 </body>
 </html>
+
 
