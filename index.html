@@ -70,7 +70,6 @@ function limpiar(v){
     .trim();
 }
 
-// 🔥 parser CSV que respeta comillas (CLAVE)
 function parseCSVLine(line) {
   const result = [];
   let current = "";
@@ -90,6 +89,18 @@ function parseCSVLine(line) {
   return result;
 }
 
+function limpiarNumero(valor){
+  if(!valor) return 0;
+
+  return Number(
+    valor
+      .toString()
+      .replace(/\./g,"")
+      .replace(/,/g,"")
+      .replace(/[^0-9]/g,"")
+  ) || 0;
+}
+
 // ================= BUSCADOR =================
 
 async function buscar(){
@@ -103,32 +114,34 @@ async function buscar(){
 
   const codigoBuscado = input.padStart(3,"0");
 
-  const base =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmAZln4BBbQrbDe_RsnTCMSQBCoGwLDjBAtgFtlu9A9AEdJ0c9wHsHotn4lffLy/pub?gid=";
-
-  const urlVentas = base + "1125130532&single=true&output=csv";
-  const urlAbonos = base + "305709255&single=true&output=csv";
+  const urlVentas =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmAZln4BBbQrbDe_RsnTCMSQBCoGwLDjBAtgFtlu9A9AEdJ0c9wHsHotn4lffLy/pub?gid=1125130532&single=true&output=csv";
 
   try{
 
-    // ================= VENTAS =================
     const ventasText = await fetch(urlVentas).then(r=>r.text());
-    const ventasFilas = ventasText.split("\n");
+    const filas = ventasText.split("\n");
 
     let ventaExiste = false;
+    let totalAbonos = 0;
 
-    for(let i=1;i<ventasFilas.length;i++){
+    for(let i=1;i<filas.length;i++){
 
-      const fila = parseCSVLine(ventasFilas[i]);
+      const partes = parseCSVLine(filas[i]);
 
-      for(let celda of fila){
-        if(limpiar(celda) === codigoBuscado){
-          ventaExiste = true;
-          break;
-        }
+      // ✅ COLUMNA C = código (índice 2)
+      const codigoFila = limpiar(partes[2] || "");
+
+      if(codigoFila === codigoBuscado){
+
+        ventaExiste = true;
+
+        // ✅ COLUMNA G = abono (índice 6)
+        const valorTexto = limpiar(partes[6] || "");
+        const valor = limpiarNumero(valorTexto);
+
+        totalAbonos += valor;
       }
-
-      if(ventaExiste) break;
     }
 
     if(!ventaExiste){
@@ -137,41 +150,6 @@ async function buscar(){
       return;
     }
 
-    // ================= ABONOS =================
-    const abonosText = await fetch(urlAbonos).then(r=>r.text());
-    const abonosFilas = abonosText.split("\n");
-
-    let totalAbonos = 0;
-
-    for(let i=1;i<abonosFilas.length;i++){
-
-      const linea = abonosFilas[i];
-      if(!linea.trim()) continue;
-
-      const partes = parseCSVLine(linea);
-
-      // columna C = código
-      const codigoFila = limpiar(partes[2] || "");
-
-      if(codigoFila === codigoBuscado){
-
-        // columna D = valor abonado
-        let valorTexto = (partes[3] || "")
-          .replace(/"/g,"")
-          .trim();
-
-        // 🔥 normalización universal
-        valorTexto = valorTexto
-          .replace(/\./g,"")
-          .replace(/,/g,"");
-
-        const valor = Number(valorTexto) || 0;
-
-        totalAbonos += valor;
-      }
-    }
-
-    // ================= RESULTADO =================
     document.getElementById("resultado").innerHTML = `
       ✅ Cliente encontrado<br>
       💰 Total abonado: $${totalAbonos.toLocaleString()}
@@ -188,3 +166,4 @@ async function buscar(){
 
 </body>
 </html>
+
