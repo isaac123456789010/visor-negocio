@@ -114,33 +114,30 @@ async function buscar(){
 
   const codigoBuscado = input.padStart(3,"0");
 
-  const urlVentas =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmAZln4BBbQrbDe_RsnTCMSQBCoGwLDjBAtgFtlu9A9AEdJ0c9wHsHotn4lffLy/pub?gid=1125130532&single=true&output=csv";
+  const base =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSwzKDNe2F33PDUIkmAZln4BBbQrbDe_RsnTCMSQBCoGwLDjBAtgFtlu9A9AEdJ0c9wHsHotn4lffLy/pub?gid=";
+
+  const urlVentas = base + "1125130532&single=true&output=csv";
+  const urlAbonos = base + "305709255&single=true&output=csv";
 
   try{
 
+    // ================= VERIFICAR QUE EXISTE EN VENTAS =================
     const ventasText = await fetch(urlVentas).then(r=>r.text());
-    const filas = ventasText.split("\n");
+    const ventasFilas = ventasText.split("\n");
 
     let ventaExiste = false;
-    let totalAbonos = 0;
 
-    for(let i=1;i<filas.length;i++){
+    for(let i=1;i<ventasFilas.length;i++){
 
-      const partes = parseCSVLine(filas[i]);
+      const partes = parseCSVLine(ventasFilas[i]);
 
-      // ✅ COLUMNA C = código (índice 2)
-      const codigoFila = limpiar(partes[2] || "");
+      // ✅ COLUMNA J = identificador (índice 9)
+      const codigoFila = limpiar(partes[9] || "");
 
       if(codigoFila === codigoBuscado){
-
         ventaExiste = true;
-
-        // ✅ COLUMNA G = abono (índice 6)
-        const valorTexto = limpiar(partes[6] || "");
-        const valor = limpiarNumero(valorTexto);
-
-        totalAbonos += valor;
+        break;
       }
     }
 
@@ -150,6 +147,30 @@ async function buscar(){
       return;
     }
 
+    // ================= SUMAR ABONOS =================
+    const abonosText = await fetch(urlAbonos).then(r=>r.text());
+    const abonosFilas = abonosText.split("\n");
+
+    let totalAbonos = 0;
+
+    for(let i=1;i<abonosFilas.length;i++){
+
+      const partes = parseCSVLine(abonosFilas[i]);
+
+      // ✅ Columna C = identificador (índice 2)
+      const codigoFila = limpiar(partes[2] || "");
+
+      if(codigoFila === codigoBuscado){
+
+        // ✅ Columna D = valor abono (índice 3)
+        const valorTexto = limpiar(partes[3] || "");
+        const valor = limpiarNumero(valorTexto);
+
+        totalAbonos += valor;
+      }
+    }
+
+    // ================= RESULTADO =================
     document.getElementById("resultado").innerHTML = `
       ✅ Cliente encontrado<br>
       💰 Total abonado: $${totalAbonos.toLocaleString()}
@@ -166,4 +187,5 @@ async function buscar(){
 
 </body>
 </html>
+
 
