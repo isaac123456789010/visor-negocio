@@ -81,7 +81,7 @@ main{max-width:1180px;margin:0 auto;padding:20px 16px 120px}
 @media (max-width:760px){
   .top{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--bg)}
   .tabs{position:fixed;left:0;right:0;bottom:0;margin:0;background:rgba(23,27,33,.97);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around;z-index:30}
-  .tab{flex-direction:column;gap:2px;font-size:11px;padding:6px 10px;flex:1}
+  .tab{flex-direction:column;gap:2px;font-size:11px;padding:6px 2px;flex:1;min-width:0}
   .tab svg{width:22px;height:22px}
   .tab[aria-current="true"]{background:none;color:var(--accent)}
   .brand h1{font-size:16px}
@@ -251,6 +251,7 @@ form.f{display:grid;gap:14px}
       <button class="tab" data-tab="inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Inicio</button>
       <button class="tab" data-tab="clientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M17 11a3 3 0 1 0 0-6M22 21c0-3-2-5-5-5.5"/></svg>Clientes</button>
       <button class="tab" data-tab="cobros"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg>Cobros</button>
+      <button class="tab" data-tab="abonos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Abonos</button>
       <button class="tab" data-tab="gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16l-3-2-3 2-2-2-2 2-3-2-3 2z"/><path d="M8 9h8M8 13h5"/></svg>Gastos</button>
     </nav>
     <button class="iconbtn" id="btnAjustes" title="Ajustes y copias" aria-label="Ajustes y copias"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
@@ -275,7 +276,7 @@ const S = {
   db:null, dl:null, canWrite:true,
   ventas:new Map(), abonos:new Map(), gastos:new Map(),
   config:{diasMoroso:30}, loaded:{ventas:false,abonos:false,gastos:false},
-  tab:'inicio', q:'', filtro:'todos', gFiltro:'todos', gMes:'todos', limit:60,
+  tab:'inicio', q:'', aq:'', aMes:'todos', aLimit:150, filtro:'todos', gFiltro:'todos', gMes:'todos', limit:60,
   panel:null
 };
 const $ = s => document.querySelector(s);
@@ -351,14 +352,16 @@ function draw(){
   if (!ready()) return;
   const C = calc(); S.C = C;
   const m = $('#main');
-  const keepFocus = document.activeElement && document.activeElement.id === 'q' ? document.activeElement.selectionStart : null;
+  const focId = document.activeElement && ['q','aq'].includes(document.activeElement.id) ? document.activeElement.id : null;
+  const keepFocus = focId ? document.activeElement.selectionStart : null;
   if (S.tab === 'inicio') m.innerHTML = vInicio(C);
   else if (S.tab === 'clientes') m.innerHTML = vClientes(C);
   else if (S.tab === 'cobros') m.innerHTML = vCobros(C);
   else if (S.tab === 'gastos') m.innerHTML = vGastos(C);
+  else if (S.tab === 'abonos') m.innerHTML = vAbonos(C);
   else if (S.tab === 'ajustes') m.innerHTML = vAjustes(C);
   bindView(C);
-  if (keepFocus != null && $('#q')) { $('#q').focus(); $('#q').setSelectionRange(keepFocus,keepFocus); }
+  if (focId && $('#'+focId)) { const el = $('#'+focId); el.focus(); el.setSelectionRange(keepFocus,keepFocus); }
   if (S.panel) S.panel();
 }
 
@@ -496,6 +499,46 @@ function vGastos(C){
   </div>`;
 }
 
+function vAbonos(C){
+  const nombre = id => S.ventas.get(id)?.cliente || '';
+  const all = [...S.abonos.entries()].map(([id,a]) => ({...a, _id:id, cliente:nombre(a.ventaId)}))
+    .sort((a,b) => (b.fecha||'').localeCompare(a.fecha||'') || (b.registrado||'').localeCompare(a.registrado||''));
+  const cur = todayStr().slice(0,7);
+  const dPrev = new Date(); dPrev.setDate(1); dPrev.setMonth(dPrev.getMonth()-1);
+  const prev = `${dPrev.getFullYear()}-${String(dPrev.getMonth()+1).padStart(2,'0')}`;
+  const sum = arr => arr.reduce((s,a)=>s+(a.valor||0),0);
+  const thisM = all.filter(a=>mesKey(a.fecha)===cur), prevM = all.filter(a=>mesKey(a.fecha)===prev);
+  const hoy = all.filter(a=>a.fecha===todayStr());
+  const meses = [...new Set(all.map(a=>mesKey(a.fecha)))];
+  const q = norm(S.aq).trim();
+  const list = all.filter(a => (S.aMes==='todos' || mesKey(a.fecha)===S.aMes) &&
+    (!q || norm(a.cliente).includes(q) || a.ventaId === q.padStart(3,'0') || norm(a.nota).includes(q)));
+  const shown = list.slice(0, S.aLimit);
+  const groups = new Map(); shown.forEach(a => { const k = mesKey(a.fecha); if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(a); });
+  const totMes = new Map(); list.forEach(a => { const k = mesKey(a.fecha); totMes.set(k,(totMes.get(k)||0)+(a.valor||0)); });
+  return `<div class="view">
+    <div class="view-head"><div><h2>Historial de abonos</h2><p>Todos los pagos recibidos, del más reciente al más antiguo. Toca uno para corregirlo.</p></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Cobrado hoy</div><div class="val num">${money(sum(hoy))}</div><div class="sub">${hoy.length} abono${hoy.length===1?'':'s'}</div></div>
+      <div class="kpi hero"><div class="lbl">Este mes</div><div class="val num">${money(sum(thisM))}</div><div class="sub">${thisM.length} abonos · ${mesLabel(cur)}</div></div>
+      <div class="kpi"><div class="lbl">Mes pasado</div><div class="val num">${money(sum(prevM))}</div><div class="sub">${prevM.length} abonos · ${mesLabel(prev)}</div></div>
+      <div class="kpi"><div class="lbl">Total cobrado</div><div class="val num">${money(C.T.cobrado)}</div><div class="sub">${all.length} abonos</div></div>
+    </div>
+    <div class="toolbar">
+      <div class="search">${ICON.search}<input id="aq" type="search" placeholder="Buscar por cliente o código" value="${esc(S.aq)}" autocomplete="off"></div>
+      <div class="fld"><select id="aMes" aria-label="Mes">${['todos',...meses].map(k=>`<option value="${k}" ${S.aMes===k?'selected':''}>${k==='todos'?'Todos los meses':mesLabel(k)}</option>`).join('')}</select></div>
+    </div>
+    ${q || S.aMes!=='todos' ? `<p class="muted" style="margin:0">${list.length} abonos encontrados · <b style="color:var(--fg)">${money(sum(list))}</b></p>` : ''}
+    <div class="list">${[...groups].map(([k,arr]) => `<div class="groupline"><span>${mesLabel(k)}</span><span class="num">${money(totMes.get(k))}</span></div>` +
+      arr.map(a => `<button class="item" data-abono="${esc(a._id)}">
+        <span class="code">${esc(a.ventaId||'—')}</span>
+        <span style="min-width:0"><span class="name" style="display:block">${esc(a.cliente || 'Sin venta asignada')}</span><span class="meta" style="display:block">${fdate(a.fecha)}${a.nota?' · '+esc(a.nota):''}</span></span>
+        <span class="right"><span class="amt" style="color:var(--ok)">+${money(a.valor)}</span></span></button>`).join('')
+    ).join('') || '<div class="empty">No hay abonos con ese filtro.</div>'}
+    ${list.length > S.aLimit ? `<button class="more" id="aMore">Mostrar más (${list.length - S.aLimit} restantes)</button>` : ''}</div>
+  </div>`;
+}
+
 function vAjustes(C){
   return `<div class="view" style="max-width:640px">
     <div class="view-head"><div><h2>Ajustes y copias</h2><p>Reglas del negocio y copias de seguridad.</p></div></div>
@@ -536,6 +579,10 @@ function bindView(C){
   m.querySelectorAll('[data-gasto]').forEach(b => b.onclick = () => openGasto(C.gastos.find(g=>g._id===b.dataset.gasto)));
   m.querySelectorAll('[data-abonar]').forEach(b => b.onclick = () => openAbono(b.dataset.abonar));
   m.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => exportCSV(b.dataset.csv));
+  m.querySelectorAll('[data-abono]').forEach(b => b.onclick = () => { const a = S.abonos.get(b.dataset.abono); if (!a) return; if (S.canWrite) openAbono(null, {...a, _id:b.dataset.abono}); else if (a.ventaId) openVenta(a.ventaId); });
+  const aq = $('#aq'); if (aq) aq.oninput = () => { S.aq = aq.value; S.aLimit = 150; render(); };
+  const am = $('#aMes'); if (am) am.onchange = () => { S.aMes = am.value; S.aLimit = 150; render(); };
+  const amo = $('#aMore'); if (amo) amo.onclick = () => { S.aLimit += 150; render(); };
   const q = $('#q'); if (q) q.oninput = () => { S.q = q.value; S.limit = 60; render(); };
   const more = $('#more'); if (more) more.onclick = () => { S.limit += 60; render(); };
   const gm = $('#gMes'); if (gm) gm.onchange = () => { S.gMes = gm.value; render(); };
@@ -849,7 +896,7 @@ function loginView(err){
 
 async function start(){
   const initial = (location.hash || '').slice(1);
-  if (['inicio','clientes','cobros','gastos','ajustes'].includes(initial)) S.tab = initial;
+  if (['inicio','clientes','cobros','abonos','gastos','ajustes'].includes(initial)) S.tab = initial;
   if (typeof firebase === 'undefined') { noDb('No se pudo cargar la app. Revisa tu conexión a internet y recarga la página.'); return; }
   if (!FIREBASE_CONFIG.projectId || FIREBASE_CONFIG.projectId === 'PEGA_AQUI') { noDb('Falta pegar la configuración de Firebase al principio del archivo index.html.'); return; }
   firebase.initializeApp(FIREBASE_CONFIG);
