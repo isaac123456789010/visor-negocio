@@ -276,7 +276,7 @@ const S = {
   db:null, dl:null, canWrite:true,
   ventas:new Map(), abonos:new Map(), gastos:new Map(),
   config:{diasMoroso:30}, loaded:{ventas:false,abonos:false,gastos:false},
-  tab:'inicio', q:'', aq:'', aMes:'todos', aLimit:150, filtro:'todos', gFiltro:'todos', gMes:'todos', limit:60,
+  tab:'inicio', cOrden:'dias', q:'', aq:'', aMes:'todos', aLimit:150, filtro:'todos', gFiltro:'todos', gMes:'todos', limit:60,
   panel:null
 };
 const $ = s => document.querySelector(s);
@@ -452,22 +452,54 @@ function vClientes(C){
 }
 
 function vCobros(C){
-  const pend = C.ventas.filter(v => v.saldo > 0).sort((a,b) => (b.dias??0) - (a.dias??0));
-  const mor = pend.filter(v=>v.estado==='moroso');
+  let pend = C.ventas.filter(v => v.saldo > 0);
+  const hoyV = pend.filter(v => { const c = cobroInfo(v); return c && c.cls !== 'aldia'; });
+  if (S.cOrden === 'cobro') pend = pend.filter(v => cobroInfo(v)).sort((a,b) => cobroInfo(a).due.localeCompare(cobroInfo(b).due));
+  else pend.sort((a,b) => (b.dias??0) - (a.dias??0));
+  const mor = C.ventas.filter(v=>v.saldo>0 && v.estado==='moroso');
+  const chip = (k,l,n) => `<button class="chip" data-co="${k}" aria-pressed="${S.cOrden===k}">${l}${n!=null?`<span class="n">${n}</span>`:''}</button>`;
   return `<div class="view">
-    <div class="view-head"><div><h2>Cobros pendientes</h2><p>Ordenados por quién lleva más días sin abonar. ${mor.length} morosos deben ${money(mor.reduce((s,v)=>s+v.saldo,0))}.</p></div></div>
+    <div class="view-head"><div><h2>Cobros pendientes</h2><p>${mor.length} morosos deben ${money(mor.reduce((s,v)=>s+v.saldo,0))}. ${hoyV.length ? `<b style="color:var(--warn)">${hoyV.length} con cuota para hoy o vencida.</b>` : ''}</p></div></div>
+    <div class="chips">${chip('dias','Más días sin abonar')}${chip('cobro','Por fecha de cobro', C.ventas.filter(v=>cobroInfo(v)).length)}</div>
     <div class="list">${pend.map(v => `
       <div class="item" style="grid-template-columns:52px minmax(0,1fr) auto">
         <span class="code">${esc(v.id)}</span>
         <button style="all:unset;cursor:pointer;min-width:0" data-venta="${esc(v.id)}"><span class="name" style="display:block">${esc(v.cliente)}</span>
-          <span class="meta" style="display:block">${money(v.saldo)} · ${v.ultimo ? 'último abono ' + fdate(v.ultimo) : 'sin abonos'}</span></button>
-        <span class="right"><span class="pill ${v.estado}">${v.dias} días</span>
+          <span class="meta" style="display:block">${money(v.saldo)} · ${v.ultimo ? 'último abono ' + fdate(v.ultimo) : 'sin abonos'}${diaDe(v) ? ' · cobra los ' + diaDe(v) : ''}</span></button>
+        <span class="right">${S.cOrden==='cobro' && cobroInfo(v) ? `<span class="pill ${cobroInfo(v).cls}">${cobroInfo(v).short}</span>` : `<span class="pill ${v.estado}">${v.dias} días</span>`}
           <span class="contact">${waLink(v) ? `<a class="btn sm ghost" href="${waLink(v)}" target="_blank" rel="noopener">${ICON.wa}<span class="hide-sm">WhatsApp</span></a>` : ''}
           <button class="btn sm" data-abonar="${esc(v.id)}">Abonar</button></span></span>
-      </div>`).join('') || '<div class="empty">Nadie tiene saldo pendiente.</div>'}</div>
+      </div>`).join('') || `<div class="empty">${S.cOrden==='cobro' ? 'Ninguna venta pendiente tiene día de cobro todavía. Agrégalo con Editar venta.' : 'Nadie tiene saldo pendiente.'}</div>`}</div>
   </div>`;
 }
 
+const ds = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function diaDe(v){ const n = parseInt(v.diaCobro,10); if (n>=1 && n<=31) return n; if (v.fechaCobro) return +v.fechaCobro.slice(8,10); return null; }
+function fechaDia(y, m, dia){ const ult = new Date(y, m+1, 0).getDate(); return new Date(y, m, Math.min(dia, ult)); }
+/* Cuota mensual: vence cada mes el día elegido, empezando el mes siguiente a la venta.
+   Se da por pagada si hubo un abono desde 20 días antes del vencimiento. */
+function cobroInfo(v){
+  const dia = diaDe(v);
+  if (!dia || v.saldo <= 0) return null;
+  const t = new Date(); const hoy = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  let ult = fechaDia(hoy.getFullYear(), hoy.getMonth(), dia);
+  if (ult > hoy) ult = fechaDia(hoy.getFullYear(), hoy.getMonth()-1, dia);
+  let prox = fechaDia(ult.getFullYear(), ult.getMonth()+1, dia);
+  const venta = v.fecha ? new Date(+v.fecha.slice(0,4), +v.fecha.slice(5,7)-1, +v.fecha.slice(8,10)) : null;
+  const primera = venta ? fechaDia(venta.getFullYear(), venta.getMonth()+1, dia) : null;
+  if (primera && ult < primera) { if (prox < primera) prox = primera; }
+  else {
+    const desde = new Date(ult); desde.setDate(desde.getDate() - 20);
+    const pagada = v.abonos.some(a => a.fecha && a.fecha >= ds(desde));
+    if (!pagada) {
+      const d = Math.round((hoy - ult) / 864e5);
+      return d === 0 ? {cls:'warn', due:ds(ult), txt:`Cobrar hoy (día ${dia})`, short:'Cobrar hoy'}
+                     : {cls:'moroso', due:ds(ult), txt:`Cuota del ${fdate(ds(ult))} sin pagar (hace ${d} día${d===1?'':'s'})`, short:`Vencida ${d}d`};
+    }
+  }
+  const n = Math.round((prox - hoy) / 864e5);
+  return {cls:'aldia', due:ds(prox), txt:`Próximo cobro: ${fdate(ds(prox))} (en ${n} día${n===1?'':'s'})`, short:fdate(ds(prox))};
+}
 function mesKey(f){ return f ? f.slice(0,7) : 'sin'; }
 function mesLabel(k){ if (k==='sin') return 'Antes del sistema'; const [y,m] = k.split('-').map(Number); return `${MESES_L[m-1]} ${y}`; }
 function vGastos(C){
@@ -575,6 +607,7 @@ function bindView(C){
   m.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   m.querySelectorAll('[data-rev]').forEach(b => b.onclick = () => C.revisar[+b.dataset.rev].go());
   m.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.filtro = b.dataset.f; S.limit = 60; render(); });
+  m.querySelectorAll('[data-co]').forEach(b => b.onclick = () => { S.cOrden = b.dataset.co; render(); });
   m.querySelectorAll('[data-gf]').forEach(b => b.onclick = () => { S.gFiltro = b.dataset.gf; render(); });
   m.querySelectorAll('[data-gasto]').forEach(b => b.onclick = () => openGasto(C.gastos.find(g=>g._id===b.dataset.gasto)));
   m.querySelectorAll('[data-abonar]').forEach(b => b.onclick = () => openAbono(b.dataset.abonar));
@@ -610,9 +643,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#overla
 const head = (t, sub) => `<div class="drawer-h"><div style="min-width:0"><h3>${t}</h3>${sub?`<p>${sub}</p>`:''}</div><button class="iconbtn" data-close aria-label="Cerrar">${ICON.close}</button></div>`;
 
 function openVenta(id){
+  let seen = false;
   const draw = () => {
-    const v = (S.C || calc()).ventas.find(x => x.id === id);
-    if (!v) { closePanel(); return; }
+    const v = calc().ventas.find(x => x.id === id);
+    if (!v) { if (seen) closePanel(); return; }
+    seen = true;
     const lab = {moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado];
     const tel = v.telefono ? `<span class="num">${esc(v.telefono)}</span><button class="btn sm ghost" data-copy="${esc(v.telefono)}">${ICON.copy}Copiar</button>${waLink(v)?`<a class="btn sm ghost" href="${waLink(v)}" target="_blank" rel="noopener">${ICON.wa}WhatsApp</a>`:''}` : '<span class="muted">Sin teléfono</span>';
     showPanel(`${head(esc(v.cliente), `Venta ${esc(v.id)} · ${fdate(v.fecha)} · <span class="pill ${v.estado}">${lab}</span>`)}
@@ -625,6 +660,8 @@ function openVenta(id){
           <div class="fact"><div class="lbl">Ganancia</div><div class="v">${money((v.precio||0)-(v.costo||0))}</div></div>
         </div>
         ${v.nota ? `<div class="note">${esc(v.nota)}</div>` : ''}
+        <div class="row2"><div><div class="sect-t">Fecha de cobro</div><div>${diaDe(v) ? `El ${diaDe(v)} de cada mes` : '<span class="muted">Sin día de cobro</span>'}${cobroInfo(v) ? `<div style="margin-top:4px"><span class="pill ${cobroInfo(v).cls}">${cobroInfo(v).txt}</span></div>` : ''}</div></div>
+          <div><div class="sect-t">Cuota inicial</div><div class="num">${v.cuotaInicial ? money(v.cuotaInicial) : '<span class="muted">Sin cuota inicial</span>'}</div></div></div>
         <div><div class="sect-t">Producto</div><div>${esc(v.producto)||'<span class="muted">Sin producto</span>'}</div></div>
         <div class="row2"><div><div class="sect-t">Cédula</div><div class="num">${esc(v.cedula)||'<span class="muted">Sin cédula</span>'}</div></div>
           <div><div class="sect-t">Teléfono</div><div class="contact">${tel}</div></div></div>
@@ -672,6 +709,9 @@ function formVenta(v){
       <div class="fld"><label for="vProd">Producto</label><input id="vProd" value="${esc(v.producto)}" required></div>
       <div class="row2"><div class="fld"><label for="vPrecio">Precio de venta</label><input id="vPrecio" inputmode="numeric" value="${v.precio?Number(v.precio).toLocaleString('es-CO'):''}" required></div>
         <div class="fld"><label for="vCosto">Costo (lo que costó)</label><input id="vCosto" inputmode="numeric" value="${v.costo?Number(v.costo).toLocaleString('es-CO'):''}"></div></div>
+      <div class="row2">${isNew ? `<div class="fld"><label for="vCuota">Cuota inicial</label><input id="vCuota" inputmode="numeric" placeholder="0"><span class="hint">Se guarda como el primer abono.</span></div>`
+          : `<div class="fld"><label>Cuota inicial</label><input value="${v.cuotaInicial?money(v.cuotaInicial):'Sin cuota inicial'}" disabled><span class="hint">Para cambiarla, edita ese abono en la lista de abonos.</span></div>`}
+        <div class="fld"><label for="vCobro">Fecha de cobro (día del mes)</label><input id="vCobro" type="number" inputmode="numeric" min="1" max="31" placeholder="Ej: 5" value="${esc(diaDe(v)||'')}"><span class="hint">Cada mes ese día se le cobra, desde el mes siguiente a la venta.</span></div></div>
       <div class="row2"><div class="fld"><label for="vCed">Cédula</label><input id="vCed" value="${esc(v.cedula)}"></div>
         <div class="fld"><label for="vTel">Teléfono</label><input id="vTel" inputmode="tel" value="${esc(v.telefono)}"></div></div>
       <div class="fld"><label for="vNota">Nota (opcional)</label><textarea id="vNota" rows="2">${esc(v.nota)}</textarea></div>
@@ -679,7 +719,7 @@ function formVenta(v){
     </form></div>
     <div class="drawer-f">${isNew?'':`<button class="btn danger" id="vDel">${ICON.trash}Borrar</button>`}<button class="btn primary" id="vSave">Guardar venta</button></div>`,
   d => {
-    moneyInput(d.querySelector('#vPrecio')); moneyInput(d.querySelector('#vCosto'));
+    moneyInput(d.querySelector('#vPrecio')); moneyInput(d.querySelector('#vCosto')); if (d.querySelector('#vCuota')) moneyInput(d.querySelector('#vCuota'));
     const cli = d.querySelector('#vCli');
     cli.addEventListener('change', () => { const prev = [...S.ventas.values()].filter(x=>x.cliente===cli.value).pop(); if (prev) { if(!d.querySelector('#vCed').value) d.querySelector('#vCed').value = prev.cedula||''; if(!d.querySelector('#vTel').value) d.querySelector('#vTel').value = prev.telefono||''; } });
     d.querySelector('#vSave').onclick = async () => {
@@ -687,11 +727,17 @@ function formVenta(v){
         precio:parseMoney(d.querySelector('#vPrecio').value), costo:parseMoney(d.querySelector('#vCosto').value),
         cedula:d.querySelector('#vCed').value.trim(), telefono:d.querySelector('#vTel').value.trim(), nota:d.querySelector('#vNota').value.trim() };
       data.anio = data.fecha ? +data.fecha.slice(0,4) : 0;
-      const err = !data.cliente ? 'Escribe el nombre del cliente' : !data.producto ? 'Escribe el producto' : !data.precio ? 'Escribe el precio de venta' : !data.fecha ? 'Elige la fecha' : '';
+      const dc = parseInt(d.querySelector('#vCobro').value,10);
+      data.diaCobro = dc >= 1 && dc <= 31 ? dc : null; data.fechaCobro = '';
+      data.cuotaInicial = isNew ? parseMoney(d.querySelector('#vCuota').value) : (v.cuotaInicial || 0);
+      const err = d.querySelector('#vCobro').value && !data.diaCobro ? 'El día de cobro debe ser un número del 1 al 31' : data.cuotaInicial > data.precio && data.precio ? 'La cuota inicial no puede ser mayor que el precio' : !data.cliente ? 'Escribe el nombre del cliente' : !data.producto ? 'Escribe el producto' : !data.precio ? 'Escribe el precio de venta' : !data.fecha ? 'Elige la fecha' : '';
       if (err) { d.querySelector('#vErr').textContent = err; return; }
       if (isNew && S.ventas.has(data.id)) data.id = nextId();
       data.registrado = v.registrado || new Date().toISOString();
-      const ok = await write(() => S.db.doc('ventas/' + data.id).set(data), isNew ? `Venta ${data.id} guardada` : 'Cambios guardados');
+      const ok = await write(async () => {
+        await S.db.doc('ventas/' + data.id).set(data);
+        if (isNew && data.cuotaInicial > 0) await S.db.collection('abonos').doc().set({ventaId:data.id, fecha:data.fecha, anio:data.anio, valor:data.cuotaInicial, nota:'Cuota inicial', registrado:new Date().toISOString()});
+      }, isNew ? `Venta ${data.id} guardada` : 'Cambios guardados');
       if (ok) openVenta(data.id);
     };
     d.querySelector('#vDel')?.addEventListener('click', () => {
@@ -813,8 +859,8 @@ async function write(fn, okMsg){
 function csvCell(v){ const s = String(v ?? ''); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
 async function exportCSV(kind){
   const C = S.C || calc(); let rows;
-  if (kind === 'ventas') rows = [['Código','Fecha','Cliente','Producto','Precio','Costo','Abonado','Saldo','Estado','Último abono','Cédula','Teléfono','Nota'],
-    ...C.ventas.slice().reverse().map(v => [v.id,v.fecha,v.cliente,v.producto,v.precio,v.costo,v.abonado,v.saldo,{moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado],v.ultimo||'',v.cedula,v.telefono,v.nota||''])];
+  if (kind === 'ventas') rows = [['Código','Fecha','Cliente','Producto','Precio','Costo','Cuota inicial','Abonado','Saldo','Estado','Último abono','Día de cobro','Cédula','Teléfono','Nota'],
+    ...C.ventas.slice().reverse().map(v => [v.id,v.fecha,v.cliente,v.producto,v.precio,v.costo,v.cuotaInicial||0,v.abonado,v.saldo,{moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado],v.ultimo||'',diaDe(v)||'',v.cedula,v.telefono,v.nota||''])];
   else if (kind === 'abonos') rows = [['Fecha','Código venta','Cliente','Valor','Nota'],
     ...[...S.abonos.values()].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).map(a => [a.fecha,a.ventaId,S.ventas.get(a.ventaId)?.cliente||'',a.valor,a.nota||''])];
   else rows = [['Fecha','Tipo','Valor','Descripción','Nota'], ...C.gastos.slice().reverse().map(g => [g.fecha||'',g.tipo==='personal'?'Personal':'Reinversión',g.valor,g.descripcion||'',g.nota||''])];
