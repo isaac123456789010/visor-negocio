@@ -709,7 +709,7 @@ function formVenta(v){
       <div class="fld"><label for="vProd">Producto</label><input id="vProd" value="${esc(v.producto)}" required></div>
       <div class="row2"><div class="fld"><label for="vPrecio">Precio de venta</label><input id="vPrecio" inputmode="numeric" value="${v.precio?Number(v.precio).toLocaleString('es-CO'):''}" required></div>
         <div class="fld"><label for="vCosto">Costo (lo que costó)</label><input id="vCosto" inputmode="numeric" value="${v.costo?Number(v.costo).toLocaleString('es-CO'):''}"></div></div>
-      <div class="row2">${isNew ? `<div class="fld"><label for="vCuota">Cuota inicial</label><input id="vCuota" inputmode="numeric" placeholder="0"><span class="hint">Se guarda como el primer abono.</span></div>`
+      <div class="row2">${isNew ? `<div class="fld"><label for="vCuota">Cuota inicial</label><input id="vCuota" inputmode="numeric" placeholder="0"><span class="hint">Se guarda como abono con la fecha de la venta.</span></div>`
           : `<div class="fld"><label>Cuota inicial</label><input value="${v.cuotaInicial?money(v.cuotaInicial):'Sin cuota inicial'}" disabled><span class="hint">Para cambiarla, edita ese abono en la lista de abonos.</span></div>`}
         <div class="fld"><label for="vCobro">Fecha de cobro (día del mes)</label><input id="vCobro" type="number" inputmode="numeric" min="1" max="31" placeholder="Ej: 5" value="${esc(diaDe(v)||'')}"><span class="hint">Cada mes ese día se le cobra, desde el mes siguiente a la venta.</span></div></div>
       <div class="row2"><div class="fld"><label for="vCed">Cédula</label><input id="vCed" value="${esc(v.cedula)}"></div>
@@ -736,7 +736,14 @@ function formVenta(v){
       data.registrado = v.registrado || new Date().toISOString();
       const ok = await write(async () => {
         await S.db.doc('ventas/' + data.id).set(data);
-        if (isNew && data.cuotaInicial > 0) await S.db.collection('abonos').doc().set({ventaId:data.id, fecha:data.fecha, anio:data.anio, valor:data.cuotaInicial, nota:'Cuota inicial', registrado:new Date().toISOString()});
+        if (isNew && data.cuotaInicial > 0) await S.db.collection('abonos').doc().set({ventaId:data.id, fecha:data.fecha, anio:data.anio, valor:data.cuotaInicial, nota:'Cuota inicial', cuotaInicial:true, registrado:new Date().toISOString()});
+        if (!isNew) {
+          // La cuota inicial siempre lleva la fecha de la venta: si la fecha cambió (o quedó distinta), se corrige.
+          for (const [aid, a] of S.abonos) {
+            if (a.ventaId === data.id && (a.cuotaInicial || a.nota === 'Cuota inicial') && a.fecha !== data.fecha)
+              await S.db.doc('abonos/' + aid).update({fecha:data.fecha, anio:data.anio});
+          }
+        }
       }, isNew ? `Venta ${data.id} guardada` : 'Cambios guardados');
       if (ok) openVenta(data.id);
     };
