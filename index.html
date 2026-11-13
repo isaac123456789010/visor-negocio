@@ -314,7 +314,9 @@ function calc(){
     const ultimo = ab.length ? ab[ab.length-1].fecha : null;
     const dias = daysSince(ultimo || v.fecha);
     const estado = saldo <= 0 ? 'pagado' : (dias != null && dias > dm ? 'moroso' : 'aldia');
-    return {...v, abonos:ab, abonado, saldo, ultimo, dias, estado};
+    const abCI = ab.filter(a => a.cuotaInicial || a.nota === 'Cuota inicial');
+    const cuotaIni = abCI.length ? abCI.reduce((s,a) => s + (a.valor||0), 0) : (v.cuotaInicial || 0);
+    return {...v, abonos:ab, abonado, saldo, ultimo, dias, estado, cuotaIni};
   }).sort((a,b) => b.id.localeCompare(a.id));
   const gastos = [...S.gastos.entries()].map(([id,g]) => ({...g,_id:id}))
     .sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
@@ -661,7 +663,7 @@ function openVenta(id){
         </div>
         ${v.nota ? `<div class="note">${esc(v.nota)}</div>` : ''}
         <div class="row2"><div><div class="sect-t">Fecha de cobro</div><div>${diaDe(v) ? `El ${diaDe(v)} de cada mes` : '<span class="muted">Sin día de cobro</span>'}${cobroInfo(v) ? `<div style="margin-top:4px"><span class="pill ${cobroInfo(v).cls}">${cobroInfo(v).txt}</span></div>` : ''}</div></div>
-          <div><div class="sect-t">Cuota inicial</div><div class="num">${v.cuotaInicial ? money(v.cuotaInicial) : '<span class="muted">Sin cuota inicial</span>'}</div></div></div>
+          <div><div class="sect-t">Cuota inicial</div><div class="num">${v.cuotaIni ? money(v.cuotaIni) : '<span class="muted">Sin cuota inicial</span>'}</div></div></div>
         <div><div class="sect-t">Producto</div><div>${esc(v.producto)||'<span class="muted">Sin producto</span>'}</div></div>
         <div class="row2"><div><div class="sect-t">Cédula</div><div class="num">${esc(v.cedula)||'<span class="muted">Sin cédula</span>'}</div></div>
           <div><div class="sect-t">Teléfono</div><div class="contact">${tel}</div></div></div>
@@ -710,7 +712,7 @@ function formVenta(v){
       <div class="row2"><div class="fld"><label for="vPrecio">Precio de venta</label><input id="vPrecio" inputmode="numeric" value="${v.precio?Number(v.precio).toLocaleString('es-CO'):''}" required></div>
         <div class="fld"><label for="vCosto">Costo (lo que costó)</label><input id="vCosto" inputmode="numeric" value="${v.costo?Number(v.costo).toLocaleString('es-CO'):''}"></div></div>
       <div class="row2">${isNew ? `<div class="fld"><label for="vCuota">Cuota inicial</label><input id="vCuota" inputmode="numeric" placeholder="0"><span class="hint">Se guarda como abono con la fecha de la venta.</span></div>`
-          : `<div class="fld"><label>Cuota inicial</label><input value="${v.cuotaInicial?money(v.cuotaInicial):'Sin cuota inicial'}" disabled><span class="hint">Para cambiarla, edita ese abono en la lista de abonos.</span></div>`}
+          : `<div class="fld"><label>Cuota inicial</label><input value="${v.cuotaIni?money(v.cuotaIni):'Sin cuota inicial'}" disabled><span class="hint">Para cambiarla, edita ese abono en la lista de abonos.</span></div>`}
         <div class="fld"><label for="vCobro">Fecha de cobro (día del mes)</label><input id="vCobro" type="number" inputmode="numeric" min="1" max="31" placeholder="Ej: 5" value="${esc(diaDe(v)||'')}"><span class="hint">Cada mes ese día se le cobra, desde el mes siguiente a la venta.</span></div></div>
       <div class="row2"><div class="fld"><label for="vCed">Cédula</label><input id="vCed" value="${esc(v.cedula)}"></div>
         <div class="fld"><label for="vTel">Teléfono</label><input id="vTel" inputmode="tel" value="${esc(v.telefono)}"></div></div>
@@ -729,7 +731,7 @@ function formVenta(v){
       data.anio = data.fecha ? +data.fecha.slice(0,4) : 0;
       const dc = parseInt(d.querySelector('#vCobro').value,10);
       data.diaCobro = dc >= 1 && dc <= 31 ? dc : null; data.fechaCobro = '';
-      data.cuotaInicial = isNew ? parseMoney(d.querySelector('#vCuota').value) : (v.cuotaInicial || 0);
+      data.cuotaInicial = isNew ? parseMoney(d.querySelector('#vCuota').value) : (v.cuotaIni ?? v.cuotaInicial ?? 0);
       const err = d.querySelector('#vCobro').value && !data.diaCobro ? 'El día de cobro debe ser un número del 1 al 31' : data.cuotaInicial > data.precio && data.precio ? 'La cuota inicial no puede ser mayor que el precio' : !data.cliente ? 'Escribe el nombre del cliente' : !data.producto ? 'Escribe el producto' : !data.precio ? 'Escribe el precio de venta' : !data.fecha ? 'Elige la fecha' : '';
       if (err) { d.querySelector('#vErr').textContent = err; return; }
       if (isNew && S.ventas.has(data.id)) data.id = nextId();
@@ -794,8 +796,13 @@ function openAbono(ventaId, abono){
       const err = !sel ? 'Elige la venta' : !valor ? 'Escribe el valor del abono' : !fecha ? 'Elige la fecha' : '';
       if (err) { d.querySelector('#aErr').textContent = err; return; }
       const data = {ventaId:sel, fecha, anio:+fecha.slice(0,4), valor, nota:d.querySelector('#aNota').value.trim(), registrado: abono?.registrado || new Date().toISOString()};
+      const esCI = abono && (abono.cuotaInicial || abono.nota === 'Cuota inicial');
+      if (esCI) data.cuotaInicial = true;
       const ref = isNew ? S.db.collection('abonos').doc() : S.db.doc('abonos/' + abono._id);
-      const ok = await write(() => ref.set(data), isNew ? `Abono de ${money(valor)} guardado` : 'Abono actualizado');
+      const ok = await write(async () => {
+        await ref.set(data);
+        if (esCI && S.ventas.has(sel) && S.ventas.get(sel).cuotaInicial !== valor) await S.db.doc('ventas/' + sel).update({cuotaInicial: valor});
+      }, isNew ? `Abono de ${money(valor)} guardado` : 'Abono actualizado');
       if (ok) openVenta(sel);
     };
     d.querySelector('#aDel')?.addEventListener('click', () => confirmBox(`¿Borrar el abono de ${money(abono.valor)}?`, 'El saldo del cliente volverá a subir. Esto no se puede deshacer.', async () => {
@@ -867,7 +874,7 @@ function csvCell(v){ const s = String(v ?? ''); return /[",\n;]/.test(s) ? '"' +
 async function exportCSV(kind){
   const C = S.C || calc(); let rows;
   if (kind === 'ventas') rows = [['Código','Fecha','Cliente','Producto','Precio','Costo','Cuota inicial','Abonado','Saldo','Estado','Último abono','Día de cobro','Cédula','Teléfono','Nota'],
-    ...C.ventas.slice().reverse().map(v => [v.id,v.fecha,v.cliente,v.producto,v.precio,v.costo,v.cuotaInicial||0,v.abonado,v.saldo,{moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado],v.ultimo||'',diaDe(v)||'',v.cedula,v.telefono,v.nota||''])];
+    ...C.ventas.slice().reverse().map(v => [v.id,v.fecha,v.cliente,v.producto,v.precio,v.costo,v.cuotaIni||0,v.abonado,v.saldo,{moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado],v.ultimo||'',diaDe(v)||'',v.cedula,v.telefono,v.nota||''])];
   else if (kind === 'abonos') rows = [['Fecha','Código venta','Cliente','Valor','Nota'],
     ...[...S.abonos.values()].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).map(a => [a.fecha,a.ventaId,S.ventas.get(a.ventaId)?.cliente||'',a.valor,a.nota||''])];
   else rows = [['Fecha','Tipo','Valor','Descripción','Nota'], ...C.gastos.slice().reverse().map(g => [g.fecha||'',g.tipo==='personal'?'Personal':'Reinversión',g.valor,g.descripcion||'',g.nota||''])];
