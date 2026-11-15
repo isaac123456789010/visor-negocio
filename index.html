@@ -227,6 +227,15 @@ form.f{display:grid;gap:14px}
 .pick button:hover,.pick button[aria-pressed="true"]{background:var(--raised)}
 .pick button:last-child{border-bottom:0}
 .pick .s{margin-left:auto;color:var(--muted);font-size:13px;white-space:nowrap}
+details.cod{border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+details.cod>summary{list-style:none;cursor:pointer;padding:12px 14px;font-weight:700;display:flex;align-items:center;gap:10px}
+details.cod>summary::-webkit-details-marker{display:none}
+details.cod>summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+details.cod[open]>summary::after{transform:rotate(-135deg)}
+details.cod>summary small{color:var(--muted);font-weight:500}
+details.cod .cod-b{padding:0 14px 14px;display:grid;gap:14px}
+.codbox{background:var(--raised);border-radius:10px;padding:12px;display:grid;gap:8px}
+.codbox .k{color:var(--muted);font-size:12px;font-weight:600}
 
 .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:calc(100vw - 32px)}
 .banner{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;color:var(--muted)}
@@ -446,7 +455,8 @@ function filtrarVentas(ventas){
     if (!q) return true;
     const qd = digits(q);
     return norm(v.cliente).includes(q) || norm(v.producto).includes(q) || v.id === q.padStart(3,'0') ||
-      (qd.length >= 4 && (digits(v.cedula).includes(qd) || digits(v.telefono).includes(qd)));
+      norm(v.codeudor?.nombre).includes(q) || norm(v.direccion).includes(q) ||
+      (qd.length >= 4 && (digits(v.cedula).includes(qd) || digits(v.telefono).includes(qd) || digits(v.codeudor?.cedula).includes(qd) || digits(v.codeudor?.telefono).includes(qd)));
   });
 }
 
@@ -458,7 +468,7 @@ function vClientes(C){
   return `<div class="view">
     <div class="view-head"><div><h2>Clientes y ventas</h2><p>Cada venta a crédito con su saldo. Toca una para ver sus abonos o editarla.</p></div></div>
     <div class="toolbar">
-      <div class="search">${ICON.search}<input id="q" type="search" placeholder="Buscar por nombre, código, cédula o teléfono" value="${esc(S.q)}" autocomplete="off"></div>
+      <div class="search">${ICON.search}<input id="q" type="search" placeholder="Buscar por nombre, código, cédula, teléfono o dirección" value="${esc(S.q)}" autocomplete="off"></div>
       <div class="chips">${chip('todos','Todos',C.ventas.length)}${chip('moroso','Morosos',cnt.moroso)}${chip('aldia','Al día',cnt.aldia)}${chip('pagado','Pagados',cnt.pagado)}</div>
     </div>
     <div class="list">${shown.length ? shown.map(itemVenta).join('') : `<div class="empty">No hay ventas que coincidan con “${esc(S.q)}”.</div>`}
@@ -693,6 +703,13 @@ function openVenta(id){
         <div><div class="sect-t">Producto</div><div>${esc(v.producto)||'<span class="muted">Sin producto</span>'}</div></div>
         <div class="row2"><div><div class="sect-t">Cédula</div><div class="num">${esc(v.cedula)||'<span class="muted">Sin cédula</span>'}</div></div>
           <div><div class="sect-t">Teléfono</div><div class="contact">${tel}</div></div></div>
+        <div><div class="sect-t">Dirección</div><div>${esc(v.direccion)||'<span class="muted">Sin dirección</span>'}</div></div>
+        ${v.codeudor?.nombre ? `<div><div class="sect-t">Codeudor</div><div class="codbox">
+          <div style="font-weight:700">${esc(v.codeudor.nombre)}</div>
+          <div class="row2"><div><div class="k">Cédula</div><div class="num">${esc(v.codeudor.cedula)||'<span class="muted">—</span>'}</div></div>
+            <div><div class="k">Teléfono</div><div class="contact">${v.codeudor.telefono ? `<span class="num">${esc(v.codeudor.telefono)}</span><button class="btn sm ghost" data-copy="${esc(v.codeudor.telefono)}">${ICON.copy}Copiar</button>` : '<span class="muted">—</span>'}</div></div></div>
+          <div><div class="k">Dirección</div><div>${esc(v.codeudor.direccion)||'<span class="muted">—</span>'}</div></div>
+        </div></div>` : ''}
         <div><div class="sect-t">Abonos programados</div>
           ${v.proms.length ? v.proms.slice(0,5).map(p => `<div class="pay"><span class="when">${fdate(p.fecha)}</span><span class="v">${p.valor ? money(p.valor) : 'Sin valor'}<span class="n" style="color:var(--muted)">${p.nota ? esc(p.nota) : ''}</span></span><span class="pill ${p.est.cls}">${p.est.short}</span>
             ${S.canWrite?`<button class="mini" data-eprom="${esc(p._id)}" aria-label="Editar abono programado">${ICON.edit}</button>`:''}</div>`).join('') : '<p class="muted" style="margin:0">Ninguno. Si el cliente dice que paga otro día, usa “Programar”.</p>'}
@@ -750,6 +767,14 @@ function formVenta(v){
         <div class="fld"><label for="vCobro">Fecha de cobro (día del mes)</label><input id="vCobro" type="number" inputmode="numeric" min="1" max="31" placeholder="Ej: 5" value="${esc(diaDe(v)||'')}"><span class="hint">Cada mes ese día se le cobra, desde el mes siguiente a la venta.</span></div></div>
       <div class="row2"><div class="fld"><label for="vCed">Cédula</label><input id="vCed" value="${esc(v.cedula)}"></div>
         <div class="fld"><label for="vTel">Teléfono</label><input id="vTel" inputmode="tel" value="${esc(v.telefono)}"></div></div>
+      <div class="fld"><label for="vDir">Dirección</label><input id="vDir" value="${esc(v.direccion||'')}" placeholder="Barrio, calle, número, referencia" autocomplete="off"></div>
+      <details class="cod" id="vCodBox" ${v.codeudor?.nombre ? 'open' : ''}><summary>Codeudor <small>${v.codeudor?.nombre ? '' : '(opcional, toca para agregar)'}</small></summary>
+        <div class="cod-b">
+          <div class="fld"><label for="cNom">Nombre del codeudor</label><input id="cNom" value="${esc(v.codeudor?.nombre||'')}" autocomplete="off"></div>
+          <div class="row2"><div class="fld"><label for="cCed">Cédula</label><input id="cCed" value="${esc(v.codeudor?.cedula||'')}"></div>
+            <div class="fld"><label for="cTel">Teléfono</label><input id="cTel" inputmode="tel" value="${esc(v.codeudor?.telefono||'')}"></div></div>
+          <div class="fld"><label for="cDir">Dirección</label><input id="cDir" value="${esc(v.codeudor?.direccion||'')}" autocomplete="off"></div>
+        </div></details>
       <div class="fld"><label for="vNota">Nota (opcional)</label><textarea id="vNota" rows="2">${esc(v.nota)}</textarea></div>
       <div class="fld"><span class="err" id="vErr"></span></div>
     </form></div>
@@ -757,11 +782,15 @@ function formVenta(v){
   d => {
     moneyInput(d.querySelector('#vPrecio')); moneyInput(d.querySelector('#vCosto')); if (d.querySelector('#vCuota')) moneyInput(d.querySelector('#vCuota'));
     const cli = d.querySelector('#vCli');
-    cli.addEventListener('change', () => { const prev = [...S.ventas.values()].filter(x=>x.cliente===cli.value).pop(); if (prev) { if(!d.querySelector('#vCed').value) d.querySelector('#vCed').value = prev.cedula||''; if(!d.querySelector('#vTel').value) d.querySelector('#vTel').value = prev.telefono||''; } });
+    cli.addEventListener('change', () => { const prev = [...S.ventas.values()].filter(x=>x.cliente===cli.value).pop(); if (prev) { if(!d.querySelector('#vCed').value) d.querySelector('#vCed').value = prev.cedula||''; if(!d.querySelector('#vTel').value) d.querySelector('#vTel').value = prev.telefono||''; if(!d.querySelector('#vDir').value) d.querySelector('#vDir').value = prev.direccion||''; } });
     d.querySelector('#vSave').onclick = async () => {
       const data = { id:v.id, fecha:d.querySelector('#vFecha').value, cliente:cli.value.trim(), producto:d.querySelector('#vProd').value.trim(),
         precio:parseMoney(d.querySelector('#vPrecio').value), costo:parseMoney(d.querySelector('#vCosto').value),
-        cedula:d.querySelector('#vCed').value.trim(), telefono:d.querySelector('#vTel').value.trim(), nota:d.querySelector('#vNota').value.trim() };
+        cedula:d.querySelector('#vCed').value.trim(), telefono:d.querySelector('#vTel').value.trim(), nota:d.querySelector('#vNota').value.trim(), direccion:d.querySelector('#vDir').value.trim() };
+      const cod = {nombre:d.querySelector('#cNom').value.trim(), cedula:d.querySelector('#cCed').value.trim(), telefono:d.querySelector('#cTel').value.trim(), direccion:d.querySelector('#cDir').value.trim()};
+      const hayCod = Object.values(cod).some(Boolean);
+      data.codeudor = hayCod ? cod : null;
+      if (hayCod && !cod.nombre) { d.querySelector('#vCodBox').open = true; d.querySelector('#vErr').textContent = 'Escribe el nombre del codeudor (o borra sus datos si no tiene)'; return; }
       data.anio = data.fecha ? +data.fecha.slice(0,4) : 0;
       const dc = parseInt(d.querySelector('#vCobro').value,10);
       data.diaCobro = dc >= 1 && dc <= 31 ? dc : null; data.fechaCobro = '';
@@ -951,8 +980,8 @@ async function write(fn, okMsg){
 function csvCell(v){ const s = String(v ?? ''); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
 async function exportCSV(kind){
   const C = S.C || calc(); let rows;
-  if (kind === 'ventas') rows = [['Código','Fecha','Cliente','Producto','Precio','Costo','Cuota inicial','Abonado','Saldo','Estado','Último abono','Día de cobro','Cédula','Teléfono','Nota'],
-    ...C.ventas.slice().reverse().map(v => [v.id,v.fecha,v.cliente,v.producto,v.precio,v.costo,v.cuotaIni||0,v.abonado,v.saldo,{moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado],v.ultimo||'',diaDe(v)||'',v.cedula,v.telefono,v.nota||''])];
+  if (kind === 'ventas') rows = [['Código','Fecha','Cliente','Producto','Precio','Costo','Cuota inicial','Abonado','Saldo','Estado','Último abono','Día de cobro','Cédula','Teléfono','Dirección','Codeudor','Cédula codeudor','Teléfono codeudor','Dirección codeudor','Nota'],
+    ...C.ventas.slice().reverse().map(v => [v.id,v.fecha,v.cliente,v.producto,v.precio,v.costo,v.cuotaIni||0,v.abonado,v.saldo,{moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado],v.ultimo||'',diaDe(v)||'',v.cedula,v.telefono,v.direccion||'',v.codeudor?.nombre||'',v.codeudor?.cedula||'',v.codeudor?.telefono||'',v.codeudor?.direccion||'',v.nota||''])];
   else if (kind === 'abonos') rows = [['Fecha','Código venta','Cliente','Valor','Nota'],
     ...[...S.abonos.values()].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).map(a => [a.fecha,a.ventaId,S.ventas.get(a.ventaId)?.cliente||'',a.valor,a.nota||''])];
   else rows = [['Fecha','Tipo','Valor','Descripción','Nota'], ...C.gastos.slice().reverse().map(g => [g.fecha||'',g.tipo==='personal'?'Personal':'Reinversión',g.valor,g.descripcion||'',g.nota||''])];
