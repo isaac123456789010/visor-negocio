@@ -495,7 +495,7 @@ function vCobros(C){
           <span class="meta" style="display:block">${money(v.saldo)} · ${v.ultimo ? 'último abono ' + fdate(v.ultimo) : 'sin abonos'}${diaDe(v) ? ' · cobra los ' + diaDe(v) : ''}</span>${S.cOrden!=='prog' && v.prom ? `<span class="meta" style="display:block;color:var(--warn)">Programado: ${v.prom.valor ? money(v.prom.valor) + ' el ' : ''}${fdate(v.prom.fecha)}</span>` : ''}${S.cOrden==='prog' && v.prom ? `<span class="meta" style="display:block">${v.prom.valor ? 'Prometió ' + money(v.prom.valor) : 'Prometió pagar'}${v.prom.nota ? ' · ' + esc(v.prom.nota) : ''}</span>` : ''}</button>
         <span class="right">${S.cOrden==='prog' && v.prom ? `<span class="pill ${v.prom.est.cls}">${v.prom.est.short}</span>` : S.cOrden==='cobro' && cobroInfo(v) ? `<span class="pill ${cobroInfo(v).cls}">${cobroInfo(v).short}</span>` : `<span class="pill ${v.estado}">${v.dias} días</span>`}
           <span class="contact">${waLink(v) ? `<a class="btn sm ghost" href="${waLink(v)}" target="_blank" rel="noopener">${ICON.wa}<span class="hide-sm">WhatsApp</span></a>` : ''}
-          <button class="btn sm" data-abonar="${esc(v.id)}" ${S.cOrden==='prog' && v.prom?.valor ? `data-valor="${v.prom.valor}"` : ''}>Abonar</button></span></span>
+          <button class="btn sm" data-abonar="${esc(v.id)}" ${S.cOrden==='prog' && v.prom?.valor ? `data-valor="${v.prom.valor}"` : v.valorCuota ? `data-valor="${Math.min(v.valorCuota, v.saldo)}"` : ''}>Abonar</button></span></span>
       </div>`).join('') || `<div class="empty">${S.cOrden==='prog' ? 'No hay abonos programados. Ábrelos desde la ficha del cliente con el botón Programar.' : S.cOrden==='cobro' ? 'Ninguna venta pendiente tiene día de cobro todavía. Agrégalo con Editar venta.' : 'Nadie tiene saldo pendiente.'}</div>`}</div>
   </div>`;
 }
@@ -631,11 +631,25 @@ function vAjustes(C){
   </div>`;
 }
 
+function planTxt(v){
+  if (!v.numCuotas && !v.valorCuota) return '<span class="muted">Sin plan de cuotas. Agrégalo con Editar venta.</span>';
+  const n = v.numCuotas, val = v.valorCuota;
+  let html = `<div style="font-weight:700">${n ? n + ' cuota' + (n===1?'':'s') : 'Cuotas'}${val ? ' de ' + money(val) : ''}</div>`;
+  if (val) {
+    const pagado = Math.max(0, v.abonado - (v.cuotaIni||0));
+    const pagadas = Math.floor(pagado / val + 1e-9);
+    const resto = Math.max(0, Math.ceil(v.saldo / val - 1e-9));
+    const pct = n ? Math.min(100, pagadas / n * 100) : 0;
+    html += `<div class="muted" style="font-size:13px;margin-top:2px">${n ? `Equivale a ${Math.min(pagadas,n)} de ${n} pagadas` : `Equivale a ${pagadas} pagadas`}${v.saldo > 0 ? ` · faltan unas ${resto}` : ''}</div>`;
+    if (n) html += `<div class="bar" style="max-width:none;display:block;height:6px"><i style="width:${pct}%"></i></div>`;
+  }
+  return html;
+}
 function waLink(v){
   const m = digits(v.telefono).match(/3\d{9}/);
   if (!m) return '';
   const nombre = (v.cliente||'').split(/[ /]/)[0];
-  const msg = `Hola ${nombre}, le saluda MIO Muebles & Electrodomésticos. Le recordamos que el saldo pendiente de su compra (${v.producto}) es de ${money(v.saldo)}.${v.ultimo ? ' Su último abono fue el ' + fdate(v.ultimo) + '.' : ''} ¡Muchas gracias!`;
+  const msg = `Hola ${nombre}, le saluda MIO Muebles & Electrodomésticos. Le recordamos que el saldo pendiente de su compra (${v.producto}) es de ${money(v.saldo)}${v.valorCuota ? ' (cuota mensual de ' + money(v.valorCuota) + ')' : ''}.${v.ultimo ? ' Su último abono fue el ' + fdate(v.ultimo) + '.' : ''} ¡Muchas gracias!`;
   return `https://wa.me/57${m[0]}?text=${encodeURIComponent(msg)}`;
 }
 
@@ -700,6 +714,7 @@ function openVenta(id){
         ${v.nota ? `<div class="note">${esc(v.nota)}</div>` : ''}
         <div class="row2"><div><div class="sect-t">Fecha de cobro</div><div>${diaDe(v) ? `El ${diaDe(v)} de cada mes` : '<span class="muted">Sin día de cobro</span>'}${cobroInfo(v) ? `<div style="margin-top:4px"><span class="pill ${cobroInfo(v).cls}">${cobroInfo(v).txt}</span></div>` : ''}</div></div>
           <div><div class="sect-t">Cuota inicial</div><div class="num">${v.cuotaIni ? money(v.cuotaIni) : '<span class="muted">Sin cuota inicial</span>'}</div></div></div>
+        <div><div class="sect-t">Plan de pagos</div>${planTxt(v)}</div>
         <div><div class="sect-t">Producto</div><div>${esc(v.producto)||'<span class="muted">Sin producto</span>'}</div></div>
         <div class="row2"><div><div class="sect-t">Cédula</div><div class="num">${esc(v.cedula)||'<span class="muted">Sin cédula</span>'}</div></div>
           <div><div class="sect-t">Teléfono</div><div class="contact">${tel}</div></div></div>
@@ -725,7 +740,7 @@ function openVenta(id){
       d.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy));
       d.querySelectorAll('[data-eab]').forEach(b => b.onclick = () => openAbono(null, v.abonos.find(a=>a._id===b.dataset.eab)));
       d.querySelector('#dvEdit')?.addEventListener('click', () => formVenta(v));
-      d.querySelector('#dvAbono')?.addEventListener('click', () => openAbono(v.id, null, v.prom && v.prom.est.k !== 'pendiente' && v.prom.valor ? {valor:v.prom.valor} : null));
+      d.querySelector('#dvAbono')?.addEventListener('click', () => openAbono(v.id, null, v.prom && v.prom.est.k !== 'pendiente' && v.prom.valor ? {valor:v.prom.valor} : v.valorCuota ? {valor:Math.min(v.valorCuota, Math.max(v.saldo,0)) || v.valorCuota} : null));
       d.querySelector('#dvProm')?.addEventListener('click', () => openPromesa(v.id, null));
       d.querySelectorAll('[data-eprom]').forEach(b => b.onclick = () => openPromesa(v.id, v.proms.find(p=>p._id===b.dataset.eprom)));
     });
@@ -765,6 +780,9 @@ function formVenta(v){
       <div class="row2">${isNew ? `<div class="fld"><label for="vCuota">Cuota inicial</label><input id="vCuota" inputmode="numeric" placeholder="0"><span class="hint">Se guarda como abono con la fecha de la venta.</span></div>`
           : `<div class="fld"><label>Cuota inicial</label><input value="${v.cuotaIni?money(v.cuotaIni):'Sin cuota inicial'}" disabled><span class="hint">Para cambiarla, edita ese abono en la lista de abonos.</span></div>`}
         <div class="fld"><label for="vCobro">Fecha de cobro (día del mes)</label><input id="vCobro" type="number" inputmode="numeric" min="1" max="31" placeholder="Ej: 5" value="${esc(diaDe(v)||'')}"><span class="hint">Cada mes ese día se le cobra, desde el mes siguiente a la venta.</span></div></div>
+      <div class="row2"><div class="fld"><label for="vNCuotas">Número de cuotas</label><input id="vNCuotas" type="number" inputmode="numeric" min="1" max="120" placeholder="Ej: 18" value="${esc(v.numCuotas||'')}"></div>
+        <div class="fld"><label for="vVCuota">Valor de cada cuota</label><input id="vVCuota" inputmode="numeric" placeholder="Ej: 75.000" value="${v.valorCuota?Number(v.valorCuota).toLocaleString('es-CO'):''}"></div></div>
+      <span class="hint" id="vPlanHint" style="margin-top:-6px"></span>
       <div class="row2"><div class="fld"><label for="vCed">Cédula</label><input id="vCed" value="${esc(v.cedula)}"></div>
         <div class="fld"><label for="vTel">Teléfono</label><input id="vTel" inputmode="tel" value="${esc(v.telefono)}"></div></div>
       <div class="fld"><label for="vDir">Dirección</label><input id="vDir" value="${esc(v.direccion||'')}" placeholder="Barrio, calle, número, referencia" autocomplete="off"></div>
@@ -781,6 +799,21 @@ function formVenta(v){
     <div class="drawer-f">${isNew?'':`<button class="btn danger" id="vDel">${ICON.trash}Borrar</button>`}<button class="btn primary" id="vSave">Guardar venta</button></div>`,
   d => {
     moneyInput(d.querySelector('#vPrecio')); moneyInput(d.querySelector('#vCosto')); if (d.querySelector('#vCuota')) moneyInput(d.querySelector('#vCuota'));
+    const nC = d.querySelector('#vNCuotas'), vC = d.querySelector('#vVCuota'), hint = d.querySelector('#vPlanHint');
+    moneyInput(vC); let vcManual = !!v.valorCuota;
+    vC.addEventListener('input', () => { vcManual = !!vC.value; plan(); });
+    const plan = (auto) => {
+      const precio = parseMoney(d.querySelector('#vPrecio').value), ci = d.querySelector('#vCuota') ? parseMoney(d.querySelector('#vCuota').value) : (v.cuotaIni||0);
+      const n = parseInt(nC.value,10), fin = Math.max(0, precio - ci);
+      if (auto && n > 0 && !vcManual && fin) vC.value = (Math.round(fin / n / 1000) * 1000).toLocaleString('es-CO');
+      const val = parseMoney(vC.value);
+      if (n > 0 && val) {
+        const tot = n * val, dif = tot - fin;
+        hint.innerHTML = `${n} cuotas de ${money(val)} = ${money(tot)}` + (fin ? (Math.abs(dif) < 1000 ? ' · cuadra con el saldo a financiar' : ` · <span style="color:var(--warn)">${dif>0?'supera':'le falta'} ${money(Math.abs(dif))} frente al saldo (${money(fin)})</span>`) : '');
+      } else hint.textContent = fin ? `Saldo a financiar: ${money(fin)}. Pon el número de cuotas y se calcula el valor.` : '';
+    };
+    [nC, d.querySelector('#vPrecio'), d.querySelector('#vCuota')].forEach(el => el && el.addEventListener('input', () => plan(true)));
+    plan();
     const cli = d.querySelector('#vCli');
     cli.addEventListener('change', () => { const prev = [...S.ventas.values()].filter(x=>x.cliente===cli.value).pop(); if (prev) { if(!d.querySelector('#vCed').value) d.querySelector('#vCed').value = prev.cedula||''; if(!d.querySelector('#vTel').value) d.querySelector('#vTel').value = prev.telefono||''; if(!d.querySelector('#vDir').value) d.querySelector('#vDir').value = prev.direccion||''; } });
     d.querySelector('#vSave').onclick = async () => {
@@ -795,6 +828,9 @@ function formVenta(v){
       const dc = parseInt(d.querySelector('#vCobro').value,10);
       data.diaCobro = dc >= 1 && dc <= 31 ? dc : null; data.fechaCobro = '';
       data.cuotaInicial = isNew ? parseMoney(d.querySelector('#vCuota').value) : (v.cuotaIni ?? v.cuotaInicial ?? 0);
+      const nCu = parseInt(d.querySelector('#vNCuotas').value,10);
+      data.numCuotas = nCu > 0 ? nCu : null; data.valorCuota = parseMoney(d.querySelector('#vVCuota').value) || null;
+      if (d.querySelector('#vNCuotas').value && !data.numCuotas) { d.querySelector('#vErr').textContent = 'El número de cuotas debe ser mayor que cero'; return; }
       const err = d.querySelector('#vCobro').value && !data.diaCobro ? 'El día de cobro debe ser un número del 1 al 31' : data.cuotaInicial > data.precio && data.precio ? 'La cuota inicial no puede ser mayor que el precio' : !data.cliente ? 'Escribe el nombre del cliente' : !data.producto ? 'Escribe el producto' : !data.precio ? 'Escribe el precio de venta' : !data.fecha ? 'Elige la fecha' : '';
       if (err) { d.querySelector('#vErr').textContent = err; return; }
       if (isNew && S.ventas.has(data.id)) data.id = nextId();
@@ -980,8 +1016,8 @@ async function write(fn, okMsg){
 function csvCell(v){ const s = String(v ?? ''); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
 async function exportCSV(kind){
   const C = S.C || calc(); let rows;
-  if (kind === 'ventas') rows = [['Código','Fecha','Cliente','Producto','Precio','Costo','Cuota inicial','Abonado','Saldo','Estado','Último abono','Día de cobro','Cédula','Teléfono','Dirección','Codeudor','Cédula codeudor','Teléfono codeudor','Dirección codeudor','Nota'],
-    ...C.ventas.slice().reverse().map(v => [v.id,v.fecha,v.cliente,v.producto,v.precio,v.costo,v.cuotaIni||0,v.abonado,v.saldo,{moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado],v.ultimo||'',diaDe(v)||'',v.cedula,v.telefono,v.direccion||'',v.codeudor?.nombre||'',v.codeudor?.cedula||'',v.codeudor?.telefono||'',v.codeudor?.direccion||'',v.nota||''])];
+  if (kind === 'ventas') rows = [['Código','Fecha','Cliente','Producto','Precio','Costo','Cuota inicial','Abonado','Saldo','Estado','Último abono','Día de cobro','Número de cuotas','Valor cuota','Cédula','Teléfono','Dirección','Codeudor','Cédula codeudor','Teléfono codeudor','Dirección codeudor','Nota'],
+    ...C.ventas.slice().reverse().map(v => [v.id,v.fecha,v.cliente,v.producto,v.precio,v.costo,v.cuotaIni||0,v.abonado,v.saldo,{moroso:'Moroso',aldia:'Al día',pagado:'Pagado'}[v.estado],v.ultimo||'',diaDe(v)||'',v.numCuotas||'',v.valorCuota||'',v.cedula,v.telefono,v.direccion||'',v.codeudor?.nombre||'',v.codeudor?.cedula||'',v.codeudor?.telefono||'',v.codeudor?.direccion||'',v.nota||''])];
   else if (kind === 'abonos') rows = [['Fecha','Código venta','Cliente','Valor','Nota'],
     ...[...S.abonos.values()].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).map(a => [a.fecha,a.ventaId,S.ventas.get(a.ventaId)?.cliente||'',a.valor,a.nota||''])];
   else rows = [['Fecha','Tipo','Valor','Descripción','Nota'], ...C.gastos.slice().reverse().map(g => [g.fecha||'',g.tipo==='personal'?'Personal':'Reinversión',g.valor,g.descripcion||'',g.nota||''])];
